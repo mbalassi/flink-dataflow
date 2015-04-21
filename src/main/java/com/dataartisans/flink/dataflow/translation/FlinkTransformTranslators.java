@@ -335,12 +335,14 @@ public class FlinkTransformTranslators {
 //			context.setOutputDataSet(transform.getOutput(), outputDataSet);
 //		}
 //	}
-	
+
 	private static class ParDoBoundTranslator<IN, OUT> implements FlinkPipelineTranslator.TransformTranslator<ParDo.Bound<IN, OUT>> {
 		private static final Logger LOG = LoggerFactory.getLogger(ParDoBoundTranslator.class);
 
 		@Override
 		public void translateNode(ParDo.Bound<IN, OUT> transform, TranslationContext context) {
+			LOG.info("Using new ParDO");
+
 			DataSet<IN> inputDataSet = context.getInputDataSet(transform.getInput());
 
 			final DoFn<IN, OUT> doFn = transform.getFn();
@@ -348,17 +350,41 @@ public class FlinkTransformTranslators {
 			if (doFn instanceof DoFn.RequiresKeyedState) {
 				LOG.error("Flink Batch Execution does not support Keyed State.");
 			}
-			
+
 			TypeInformation<OUT> typeInformation = context.getTypeInfo(transform.getOutput());
 
-			FlinkDoFnFunction<IN, OUT> doFnWrapper = new FlinkDoFnFunction<>(doFn, context.getPipelineOptions());
-			MapPartitionOperator<IN, OUT> outputDataSet = new MapPartitionOperator<>(inputDataSet, typeInformation, doFnWrapper, transform.getName());
+			FlinkFlatMapDoFnFunction<IN, OUT> doFnWrapper = new FlinkFlatMapDoFnFunction<>(doFn, context.getPipelineOptions());
+			FlatMapOperator<IN, OUT> outputDataSet = new FlatMapOperator<>(inputDataSet, typeInformation, doFnWrapper, transform.getName());
 
 			transformSideInputs(transform.getSideInputs(), outputDataSet, context);
 
 			context.setOutputDataSet(transform.getOutput(), outputDataSet);
 		}
 	}
+
+//	private static class ParDoBoundTranslator<IN, OUT> implements FlinkPipelineTranslator.TransformTranslator<ParDo.Bound<IN, OUT>> {
+//		private static final Logger LOG = LoggerFactory.getLogger(ParDoBoundTranslator.class);
+//
+//		@Override
+//		public void translateNode(ParDo.Bound<IN, OUT> transform, TranslationContext context) {
+//			DataSet<IN> inputDataSet = context.getInputDataSet(transform.getInput());
+//
+//			final DoFn<IN, OUT> doFn = transform.getFn();
+//
+//			if (doFn instanceof DoFn.RequiresKeyedState) {
+//				LOG.error("Flink Batch Execution does not support Keyed State.");
+//			}
+//
+//			TypeInformation<OUT> typeInformation = context.getTypeInfo(transform.getOutput());
+//
+//			FlinkDoFnFunction<IN, OUT> doFnWrapper = new FlinkDoFnFunction<>(doFn, context.getPipelineOptions());
+//			MapPartitionOperator<IN, OUT> outputDataSet = new MapPartitionOperator<>(inputDataSet, typeInformation, doFnWrapper, transform.getName());
+//
+//			transformSideInputs(transform.getSideInputs(), outputDataSet, context);
+//
+//			context.setOutputDataSet(transform.getOutput(), outputDataSet);
+//		}
+//	}
 
 	private static class ParDoBoundMultiTranslator<IN, OUT> implements FlinkPipelineTranslator.TransformTranslator<ParDo.BoundMulti<IN, OUT>> {
 		private static final Logger LOG = LoggerFactory.getLogger(ParDoBoundMultiTranslator.class);
@@ -476,6 +502,16 @@ public class FlinkTransformTranslators {
 	private static void transformSideInputs(List<PCollectionView<?>> sideInputs,
 	                                        MapPartitionOperator<?, ?> outputDataSet,
 	                                        TranslationContext context) {
+		// get corresponding Flink broadcast DataSets
+		for(PCollectionView<?> input : sideInputs) {
+			DataSet<?> broadcastSet = context.getSideInputDataSet(input);
+			outputDataSet.withBroadcastSet(broadcastSet, input.getTagInternal().getId());
+		}
+	}
+
+	private static void transformSideInputs(List<PCollectionView<?>> sideInputs,
+											FlatMapOperator<?, ?> outputDataSet,
+											TranslationContext context) {
 		// get corresponding Flink broadcast DataSets
 		for(PCollectionView<?> input : sideInputs) {
 			DataSet<?> broadcastSet = context.getSideInputDataSet(input);

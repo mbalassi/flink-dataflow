@@ -84,5 +84,5 @@ public class CombineFnAggregatorWrapper<AI, AA, AR> implements Aggregator<AI>, A
 	public void addValue(AI value) {
 		add(value);
 	}
-	
+
 }
