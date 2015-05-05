@@ -13,23 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.dataartisans.flink.dataflow;
+package com.dataartisans.flink.dataflow.runner;
 
-import com.dataartisans.flink.dataflow.translation.FlinkPipelineTranslator;
+import com.dataartisans.flink.dataflow.streaming.translation.FlinkStreamingPipelineTranslator;
 import com.google.cloud.dataflow.sdk.Pipeline;
-import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
-import com.google.cloud.dataflow.sdk.options.PipelineOptionsValidator;
-import com.google.cloud.dataflow.sdk.runners.DataflowPipelineRunner;
-import com.google.cloud.dataflow.sdk.runners.PipelineRunner;
 import com.google.cloud.dataflow.sdk.transforms.PTransform;
 import com.google.cloud.dataflow.sdk.values.PInput;
 import com.google.cloud.dataflow.sdk.values.POutput;
-import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
 import org.apache.flink.api.common.JobExecutionResult;
-import org.apache.flink.api.java.CollectionEnvironment;
-import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,18 +35,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A {@link PipelineRunner} that executes the operations in the
+ * A {@link com.google.cloud.dataflow.sdk.runners.PipelineRunner} that executes the operations in the
  * pipeline by first translating them to a Flink Plan and then executing them either locally
  * or on a Flink cluster, depending on the configuration.
  *
  * This is based on {@link com.google.cloud.dataflow.sdk.runners.DataflowPipelineRunner}.
  */
-public class FlinkPipelineRunner extends PipelineRunner<FlinkRunnerResult> {
+public class FlinkStreamingPipelineRunner extends FlinkPipelineRunner {
 
-	private static final Logger LOG = LoggerFactory.getLogger(FlinkPipelineRunner.class);
-
-	/** Provided options. */
-	private final FlinkPipelineOptions options;
+	private static final Logger LOG = LoggerFactory.getLogger(FlinkStreamingPipelineRunner.class);
 
 	/**
 	 * The Flink execution environment. This is instantiated to either a
@@ -62,82 +52,39 @@ public class FlinkPipelineRunner extends PipelineRunner<FlinkRunnerResult> {
 	 * a {@link org.apache.flink.api.java.RemoteEnvironment}, depending on the configuration
 	 * options.
 	 */
-	private final ExecutionEnvironment flinkEnv;
+	private final StreamExecutionEnvironment flinkEnv;
 
 	/** Translator for this FlinkPipelineRunner, based on options. */
-	private final FlinkPipelineTranslator translator;
+	private final FlinkStreamingPipelineTranslator translator;
 
-	/**
-	 * Construct a runner from the provided options.
-	 *
-	 * @param options Properties which configure the runner.
-	 * @return The newly created runner.
-	 */
-	public static FlinkPipelineRunner fromOptions(PipelineOptions options) {
-		FlinkPipelineOptions flinkOptions =
-				PipelineOptionsValidator.validate(FlinkPipelineOptions.class, options);
-		ArrayList<String> missing = new ArrayList<>();
 
-		if (flinkOptions.getAppName() == null) {
-			missing.add("appName");
-		}
-		if (missing.size() > 0) {
-			throw new IllegalArgumentException(
-					"Missing required values: " + Joiner.on(',').join(missing));
-		}
-
-		if (flinkOptions.getFilesToStage() == null) {
-			flinkOptions.setFilesToStage(detectClassPathResourcesToStage(
-					DataflowPipelineRunner.class.getClassLoader()));
-			LOG.info("PipelineOptions.filesToStage was not specified. "
-							+ "Defaulting to files from the classpath: will stage {} files. "
-							+ "Enable logging at DEBUG level to see which files will be staged.",
-					flinkOptions.getFilesToStage().size());
-			LOG.debug("Classpath elements: {}", flinkOptions.getFilesToStage());
-		}
-
-		// Verify jobName according to service requirements.
-		String jobName = flinkOptions.getJobName().toLowerCase();
-		Preconditions.checkArgument(jobName.matches("[a-z]([-a-z0-9]*[a-z0-9])?"), "JobName invalid; " +
-				"the name must consist of only the characters " + "[-a-z0-9], starting with a letter " +
-				"and ending with a letter " + "or number");
-		Preconditions.checkArgument(jobName.length() <= 40,
-				"JobName too long; must be no more than 40 characters in length");
-
-		// Set Flink Master to [auto] if no option was specified.
-		if (flinkOptions.getFlinkMaster() == null) {
-			flinkOptions.setFlinkMaster("[auto]");
-		}
-
-		return new FlinkPipelineRunner(flinkOptions);
-	}
-
-	private FlinkPipelineRunner(FlinkPipelineOptions options) {
-		this.options = options;
+	FlinkStreamingPipelineRunner(FlinkPipelineOptions options) {
+		super(options);
 
 		this.flinkEnv = createExecutionEnvironment(options);
+		//for testing purposes
+//		flinkEnv.getStreamGraph().setChaining(false); // does not help
+		flinkEnv.setParallelism(1);
 
-		this.translator = new FlinkPipelineTranslator(flinkEnv, options);
+		this.translator = new FlinkStreamingPipelineTranslator(flinkEnv, options);
 	}
 
 	/**
 	 * Create Flink {@link org.apache.flink.api.java.ExecutionEnvironment} depending
 	 * on the options.
 	 */
-	private ExecutionEnvironment createExecutionEnvironment(FlinkPipelineOptions options) {
+	private StreamExecutionEnvironment createExecutionEnvironment(FlinkPipelineOptions options) {
 		String masterUrl = options.getFlinkMaster();
 
 
 		if (masterUrl.equals("[local]")) {
-			ExecutionEnvironment env = ExecutionEnvironment.createLocalEnvironment();
+			StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironment();
 			if (options.getParallelism() != -1) {
 				env.setParallelism(options.getParallelism());
 			}
 			return env;
-		} else if (masterUrl.equals("[collection]")) {
-			return new CollectionEnvironment();
 		} else if (masterUrl.equals("[auto]")) {
-			ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+			StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 			if (options.getParallelism() != -1) {
 				env.setParallelism(options.getParallelism());
 			}
@@ -145,7 +92,7 @@ public class FlinkPipelineRunner extends PipelineRunner<FlinkRunnerResult> {
 		} else if (masterUrl.matches(".*:\\d*")) {
 			String[] parts = masterUrl.split(":");
 			List<String> stagingFiles = options.getFilesToStage();
-			ExecutionEnvironment env = ExecutionEnvironment.createRemoteEnvironment(parts[0],
+			StreamExecutionEnvironment env = StreamExecutionEnvironment.createRemoteEnvironment(parts[0],
 					Integer.parseInt(parts[1]),
 					stagingFiles.toArray(new String[stagingFiles.size()]));
 			if (options.getParallelism() != -1) {
@@ -154,7 +101,7 @@ public class FlinkPipelineRunner extends PipelineRunner<FlinkRunnerResult> {
 			return env;
 		} else {
 			LOG.warn("Unrecognized Flink Master URL {}. Defaulting to [auto].", masterUrl);
-			ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+			StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 			if (options.getParallelism() != -1) {
 				env.setParallelism(options.getParallelism());
 			}
@@ -196,23 +143,16 @@ public class FlinkPipelineRunner extends PipelineRunner<FlinkRunnerResult> {
 	}
 
 	/**
-	 * For testing.
-	 */
-	public FlinkPipelineOptions getPipelineOptions() {
-		return options;
-	}
-
-	/**
 	 * Constructs a runner with default properties for testing.
 	 *
 	 * @return The newly created runner.
 	 */
-	public static FlinkPipelineRunner createForTest() {
+	public static FlinkStreamingPipelineRunner createForTest() {
 		FlinkPipelineOptions options = PipelineOptionsFactory.as(FlinkPipelineOptions.class);
 		// we use [auto] for testing since this will make it pick up the Testing
 		// ExecutionEnvironment
 		options.setFlinkMaster("[auto]");
-		return new FlinkPipelineRunner(options);
+		return new FlinkStreamingPipelineRunner(options);
 	}
 
 	@Override
