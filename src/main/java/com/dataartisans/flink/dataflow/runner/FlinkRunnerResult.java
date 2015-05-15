@@ -49,4 +49,9 @@ public class FlinkRunnerResult implements PipelineResult {
 	public long getRuntime() {
 		return runtime;
 	}
+
+	@Override
+	public State getState() {
+		return null;
+	}
 }

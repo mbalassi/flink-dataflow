@@ -17,81 +17,35 @@
  */
 package com.dataartisans.flink.dataflow.translation;
 
-import com.dataartisans.flink.dataflow.translation.types.CoderTypeInformation;
-import com.dataartisans.flink.dataflow.translation.types.KvCoderTypeInformation;
-import com.google.cloud.dataflow.sdk.coders.Coder;
-import com.google.cloud.dataflow.sdk.coders.KvCoder;
+import com.google.cloud.dataflow.sdk.coders.CoderRegistry;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
+import com.google.cloud.dataflow.sdk.transforms.PTransform;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
-import com.google.cloud.dataflow.sdk.values.PValue;
-import com.google.cloud.dataflow.sdk.values.TypedPValue;
+import com.google.cloud.dataflow.sdk.values.PInput;
+import com.google.cloud.dataflow.sdk.values.POutput;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 
-import java.util.HashMap;
-import java.util.Map;
+public interface TranslationContext {
 
-public class TranslationContext {
-	
-	private final Map<PValue, DataSet<?>> dataSets;
-	private final Map<PCollectionView<?>, DataSet<?>> broadcastDataSets;
-	
-	private final ExecutionEnvironment env;
-	private final PipelineOptions options;
-	
-	// ------------------------------------------------------------------------
-	
-	public TranslationContext(ExecutionEnvironment env, PipelineOptions options) {
-		this.env = env;
-		this.options = options;
-		this.dataSets = new HashMap<>();
-		this.broadcastDataSets = new HashMap<>();
-	}
-	
-	// ------------------------------------------------------------------------
-	
-	public ExecutionEnvironment getExecutionEnvironment() {
-		return env;
-	}
+	public ExecutionEnvironment getExecutionEnvironment();
 
-	public PipelineOptions getPipelineOptions() {
-		return options;
-	}
+	public PipelineOptions getPipelineOptions();
 	
-	@SuppressWarnings("unchecked")
-	public <T> DataSet<T> getInputDataSet(PValue value) {
-		return (DataSet<T>) dataSets.get(value);
-	}
+	public <T> DataSet<T> getInputDataSet(PInput value);
 	
-	public void setOutputDataSet(PValue value, DataSet<?> set) {
-		if (!dataSets.containsKey(value)) {
-			dataSets.put(value, set);
-		}
-	}
+	public void setOutputDataSet(POutput value, DataSet<?> set);
 
-	@SuppressWarnings("unchecked")
-	public <T> DataSet<T> getSideInputDataSet(PCollectionView<?> value) {
-		return (DataSet<T>) broadcastDataSets.get(value);
-	}
+	public <T> DataSet<T> getSideInputDataSet(PCollectionView<?> value);
 
-	public void setSideInputDataSet(PCollectionView<?> value, DataSet<?> set) {
-		if (!broadcastDataSets.containsKey(value)) {
-			broadcastDataSets.put(value, set);
-		}
-	}
+	public void setSideInputDataSet(PCollectionView<?> value, DataSet<?> set);
 	
-	@SuppressWarnings("unchecked")
-	public <T> TypeInformation<T> getTypeInfo(PValue output) {
-		if (output instanceof TypedPValue) {
-			Coder<?> outputCoder = ((TypedPValue) output).getCoder();
-			if (outputCoder instanceof KvCoder) {
-				return new KvCoderTypeInformation((KvCoder) outputCoder);
-			} else {
-				return new CoderTypeInformation(outputCoder);
-			}
-		}
-		return new GenericTypeInfo<T>((Class<T>)Object.class);
-	}
+	public <T> TypeInformation<T> getTypeInfo(POutput output);
+
+	public PInput getInput(PTransform<?, ?> transform);
+
+	public POutput getOutput(PTransform<?, ?> transform);
+
+	public CoderRegistry getCoderRegistry(PTransform<?, ?> transform);
 }

@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -121,13 +122,14 @@ public class TFIDF {
 		}
 
 		@Override
-		public void addInput(List<V> accumulator, V input) {
+		public List<V> addInput(List<V> accumulator, V input) {
 			accumulator.add(input);
 			if (accumulator.size() > BUFFER_SIZE) {
 				V combined = combiner.apply(accumulator);
 				accumulator.clear();
 				accumulator.add(combined);
 			}
+			return Arrays.asList(extractOutput(accumulator));
 		}
 
 		@Override

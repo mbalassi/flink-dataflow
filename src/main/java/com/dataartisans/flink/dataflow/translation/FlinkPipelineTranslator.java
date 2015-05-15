@@ -17,35 +17,63 @@
  */
 package com.dataartisans.flink.dataflow.translation;
 
+import com.dataartisans.flink.dataflow.translation.types.CoderTypeInformation;
+import com.dataartisans.flink.dataflow.translation.types.KvCoderTypeInformation;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.Pipeline.PipelineVisitor;
+import com.google.cloud.dataflow.sdk.coders.Coder;
+import com.google.cloud.dataflow.sdk.coders.CoderRegistry;
+import com.google.cloud.dataflow.sdk.coders.KvCoder;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.runners.TransformTreeNode;
+import com.google.cloud.dataflow.sdk.transforms.AppliedPTransform;
 import com.google.cloud.dataflow.sdk.transforms.PTransform;
 import com.google.cloud.dataflow.sdk.transforms.join.CoGroupByKey;
 import com.google.cloud.dataflow.sdk.transforms.join.KeyedPCollectionTuple;
+import com.google.cloud.dataflow.sdk.values.PCollectionView;
+import com.google.cloud.dataflow.sdk.values.PInput;
+import com.google.cloud.dataflow.sdk.values.POutput;
 import com.google.cloud.dataflow.sdk.values.PValue;
+import com.google.cloud.dataflow.sdk.values.TypedPValue;
+import com.google.common.base.Preconditions;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.api.java.typeutils.GenericTypeInfo;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * FlinkPipelineTranslator knows how to translate Pipeline objects into Flink Jobs.
  *
  * This is based on {@link com.google.cloud.dataflow.sdk.runners.DataflowPipelineTranslator}
  */
-public class FlinkPipelineTranslator implements PipelineVisitor {
+public class FlinkPipelineTranslator implements PipelineVisitor, TranslationContext {
 
-	private final TranslationContext context;
+	private final Map<POutput, DataSet<?>> dataSets;
+	private final Map<PCollectionView<?>, DataSet<?>> broadcastDataSets;
+
+	private final ExecutionEnvironment env;
+	private final PipelineOptions options;
+	private Pipeline pipeline;
 
 	private int depth = 0;
 
 	private boolean inComposite = false;
 
+	private AppliedPTransform<?, ?, ?> currentTransform;
+
 	public FlinkPipelineTranslator(ExecutionEnvironment env, PipelineOptions options) {
-		this.context = new TranslationContext(env, options);
+		this.env = env;
+		this.options = options;
+		this.dataSets = new HashMap<>();
+		this.broadcastDataSets = new HashMap<>();
 	}
 
 
 	public void translate(Pipeline pipeline) {
+		this.pipeline = pipeline; // TODO: consider this
 		pipeline.traverseTopologically(this);
 	}
 
@@ -69,7 +97,8 @@ public class FlinkPipelineTranslator implements PipelineVisitor {
 	@Override
 	public void enterCompositeTransform(TransformTreeNode node) {
 		System.out.println(genSpaces(this.depth) + "enterCompositeTransform- " + formatNodeName(node));
-		PTransform<?, ?> transform = node.getTransform();
+		PTransform transform = node.getTransform();
+		currentTransform = AppliedPTransform.of(node.getInput(), node.getOutput(), (PTransform<PInput, POutput>) node.getTransform());
 
 		if (transform != null) {
 			TransformTranslator<?> translator = FlinkTransformTranslators.getTranslator(transform);
@@ -77,11 +106,12 @@ public class FlinkPipelineTranslator implements PipelineVisitor {
 			if (translator != null) {
 				inComposite = true;
 
-				if (transform instanceof CoGroupByKey &&
-						((CoGroupByKey<?>) transform).getInput().getKeyedCollections().size() != 2) {
-					// we can only optimize CoGroupByKey for input size 2
-					inComposite = false;
-				}
+				// TODO: CoGroupByKey no longer has this method
+//				if (transform instanceof CoGroupByKey &&
+//						((CoGroupByKey<?>) node.getInput()).getKeyedCollections().size() != 2) {
+//					// we can only optimize CoGroupByKey for input size 2
+//					inComposite = false;
+//				}
 			}
 		}
 
@@ -91,6 +121,7 @@ public class FlinkPipelineTranslator implements PipelineVisitor {
 	@Override
 	public void leaveCompositeTransform(TransformTreeNode node) {
 		PTransform<?, ?> transform = node.getTransform();
+		currentTransform = AppliedPTransform.of(node.getInput(), node.getOutput(), (PTransform<PInput, POutput>) node.getTransform());
 
 		if (transform != null) {
 			TransformTranslator<?> translator = FlinkTransformTranslators.getTranslator(transform);
@@ -116,6 +147,7 @@ public class FlinkPipelineTranslator implements PipelineVisitor {
 
 		// the transformation applied in this node
 		PTransform<?, ?> transform = node.getTransform();
+		currentTransform = AppliedPTransform.of(node.getInput(), node.getOutput(), (PTransform<PInput, POutput>) node.getTransform());
 
 		// the translator to the Flink operation(s)
 		TransformTranslator<?> translator = FlinkTransformTranslators.getTranslator(transform);
@@ -144,8 +176,83 @@ public class FlinkPipelineTranslator implements PipelineVisitor {
 		@SuppressWarnings("unchecked")
 		TransformTranslator<T> typedTranslator = (TransformTranslator<T>) translator;
 
-		typedTranslator.translateNode(typedTransform, context);
+		typedTranslator.translateNode(typedTransform, this);
 	}
+
+	// --------------------------------------------------------------------------------------------
+	//  Translation Context Methods
+	// --------------------------------------------------------------------------------------------
+
+	@Override
+	public ExecutionEnvironment getExecutionEnvironment() {
+		return env;
+	}
+
+	@Override
+	public PipelineOptions getPipelineOptions() {
+		return options;
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public <T> DataSet<T> getInputDataSet(PInput value) {
+		return (DataSet<T>) dataSets.get(value);
+	}
+
+	@Override
+	public void setOutputDataSet(POutput value, DataSet<?> set) {
+		if (!dataSets.containsKey(value)) {
+			dataSets.put(value, set);
+		}
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public <T> DataSet<T> getSideInputDataSet(PCollectionView<?> value) {
+		return (DataSet<T>) broadcastDataSets.get(value);
+	}
+
+	@Override
+	public void setSideInputDataSet(PCollectionView<?> value, DataSet<?> set) {
+		if (!broadcastDataSets.containsKey(value)) {
+			broadcastDataSets.put(value, set);
+		}
+	}
+
+	@Override
+	@SuppressWarnings("unchecked")
+	public <T> TypeInformation<T> getTypeInfo(POutput output) {
+		if (output instanceof TypedPValue) {
+			Coder<?> outputCoder = ((TypedPValue) output).getCoder();
+			if (outputCoder instanceof KvCoder) {
+				return new KvCoderTypeInformation((KvCoder) outputCoder);
+			} else {
+				return new CoderTypeInformation(outputCoder);
+			}
+		}
+		return new GenericTypeInfo<T>((Class<T>)Object.class);
+	}
+
+	@Override
+	public PInput getInput(PTransform<?, ?> transform) {
+		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.transform == transform, "can only be called with current transform");
+		return this.currentTransform.input;
+	}
+
+	@Override
+	public PValue getOutput(PTransform<?, ?> transform) {
+		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.transform == transform, "can only be called with current transform");
+		return (PValue) this.currentTransform.output;
+	}
+
+	public CoderRegistry getCoderRegistry(PTransform<?, ?> transform){
+		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.transform == transform, "can only be called with current transform");
+		return pipeline.getCoderRegistry();
+	}
+
+	// --------------------------------------------------------------------------------------------
+	//  Other functionality
+	// --------------------------------------------------------------------------------------------
 
 	/**
 	 * A translator of a {@link com.google.cloud.dataflow.sdk.transforms.PTransform}.

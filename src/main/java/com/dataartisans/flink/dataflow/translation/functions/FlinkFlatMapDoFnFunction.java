@@ -26,6 +26,7 @@ import com.google.cloud.dataflow.sdk.transforms.SerializableFunction;
 import com.google.cloud.dataflow.sdk.transforms.windowing.BoundedWindow;
 import com.google.cloud.dataflow.sdk.transforms.windowing.GlobalWindow;
 import com.google.cloud.dataflow.sdk.util.WindowedValue;
+import com.google.cloud.dataflow.sdk.util.WindowingInternals;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.google.cloud.dataflow.sdk.values.TupleTag;
 import com.google.common.collect.ImmutableList;
@@ -122,8 +123,18 @@ public class FlinkFlatMapDoFnFunction<IN, OUT> extends RichFlatMapFunction<IN, O
 		}
 
 		@Override
-		public Collection<? extends BoundedWindow> windows() {
-			return ImmutableList.of();
+		public BoundedWindow window() {
+			return new BoundedWindow() {
+				@Override
+				public Instant maxTimestamp() {
+					return Instant.now();
+				}
+			};
+		}
+
+		@Override
+		public WindowingInternals<IN, OUT> windowingInternals() {
+			return null;
 		}
 
 		@Override

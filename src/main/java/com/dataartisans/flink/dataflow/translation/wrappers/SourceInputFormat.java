@@ -42,12 +42,13 @@ import java.util.List;
  */
 public class SourceInputFormat<T> implements InputFormat<T, SourceInputSplit<T>> {
 	private static final Logger LOG = LoggerFactory.getLogger(SourceInputFormat.class);
+	private static final long DEFAULT_DESIRED_SPLIT_BYTES = 10000;
 
 	private final Source<T> initialSource;
 	private transient PipelineOptions options;
 	private final Coder<T> coder;
 
-	private Source.Reader<WindowedValue<T>> reader = null;
+	private Source.Reader<T> reader = null;
 	private boolean reachedEnd = true;
 
 	public SourceInputFormat(Source<T> initialSource, PipelineOptions options, Coder<T> coder) {
@@ -78,21 +79,19 @@ public class SourceInputFormat<T> implements InputFormat<T, SourceInputSplit<T>>
 		WindowedValue.ValueOnlyWindowedValueCoder<T> windowedCoder = WindowedValue
 				.ValueOnlyWindowedValueCoder.of(coder);
 
-		reader = sourceInputSplit.getSource().createWindowedReader(options, windowedCoder, null);
 		reachedEnd = false;
+		reader = sourceInputSplit.getSource().createReader(options, null);
 	}
 
 	@Override
 	public BaseStatistics getStatistics(BaseStatistics baseStatistics) throws IOException {
 		try {
-			final long estimatedSize = initialSource.getEstimatedSizeBytes(options);
-
 			return new BaseStatistics() {
-				@Override
-				public long getTotalInputSize() {
-					return estimatedSize;
 
-				}
+				//The input size is never used on the Flink side,
+				// it would only matter for joins
+				@Override
+				public long getTotalInputSize() { return BaseStatistics.SIZE_UNKNOWN; }
 
 				@Override
 				public long getNumberOfRecords() {
@@ -114,9 +113,8 @@ public class SourceInputFormat<T> implements InputFormat<T, SourceInputSplit<T>>
 	@Override
 	@SuppressWarnings("unchecked")
 	public SourceInputSplit<T>[] createInputSplits(int numSplits) throws IOException {
-		long desiredSizeBytes = 10000;
+		long desiredSizeBytes = DEFAULT_DESIRED_SPLIT_BYTES;
 		try {
-			desiredSizeBytes = initialSource.getEstimatedSizeBytes(options) / numSplits;
 			List<? extends Source<T>> shards = initialSource.splitIntoBundles(desiredSizeBytes,
 					options);
 			List<SourceInputSplit<T>> splits = Lists.newArrayList();
@@ -157,7 +155,7 @@ public class SourceInputFormat<T> implements InputFormat<T, SourceInputSplit<T>>
 
 		reachedEnd = !reader.advance();
 		if (!reachedEnd) {
-			return reader.getCurrent().getValue();
+			return reader.getCurrent();
 		}
 		return null;
 	}

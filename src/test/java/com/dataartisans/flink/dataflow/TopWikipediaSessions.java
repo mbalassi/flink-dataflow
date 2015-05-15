@@ -129,7 +129,7 @@ public class TopWikipediaSessions {
 								public void processElement(ProcessContext c) {
 									c.output(KV.of(
 											c.element().getKey() + " : "
-													+ c.windows().iterator().next(), c.element().getValue()));
+													+ c.window(), c.element().getValue()));
 								}
 							}))
 
@@ -144,7 +144,7 @@ public class TopWikipediaSessions {
 										long count = item.getValue();
 										c.output(
 												session + " : " + count + " : "
-														+ ((IntervalWindow) c.windows().iterator().next()).start());
+														+ c.window().maxTimestamp());
 									}
 								}
 							}));

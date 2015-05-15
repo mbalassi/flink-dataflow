@@ -17,97 +17,35 @@
  */
 package com.dataartisans.flink.dataflow.streaming.translation;
 
-import com.dataartisans.flink.dataflow.translation.types.CoderTypeInformation;
-import com.dataartisans.flink.dataflow.translation.types.KvCoderTypeInformation;
-import com.google.cloud.dataflow.sdk.coders.Coder;
-import com.google.cloud.dataflow.sdk.coders.KvCoder;
+import com.google.cloud.dataflow.sdk.coders.CoderRegistry;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
-import com.google.cloud.dataflow.sdk.values.PCollectionView;
-import com.google.cloud.dataflow.sdk.values.PValue;
-import com.google.cloud.dataflow.sdk.values.TypedPValue;
+import com.google.cloud.dataflow.sdk.transforms.PTransform;
+import com.google.cloud.dataflow.sdk.values.PInput;
+import com.google.cloud.dataflow.sdk.values.POutput;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.DataSet;
-import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.WindowedDataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
-import java.util.HashMap;
-import java.util.Map;
+public interface StreamingTranslationContext {
 
-public class StreamingTranslationContext {
+	public StreamExecutionEnvironment getExecutionEnvironment();
 
-	private final Map<PValue, DataStream<?>> dataStreams;
-	private final Map<PValue, WindowedDataStream<?>> windowedDataStreams;
-//	private final Map<PCollectionView<?>, DataSet<?>> broadcastDataSets;
-
-	private final StreamExecutionEnvironment env;
-	private final PipelineOptions options;
-
-	// ------------------------------------------------------------------------
-
-	public StreamingTranslationContext(StreamExecutionEnvironment env, PipelineOptions options) {
-		this.env = env;
-		this.options = options;
-		this.dataStreams = new HashMap<>();
-		this.windowedDataStreams = new HashMap<>();
-//		this.broadcastDataSets = new HashMap<>();
-	}
+	public PipelineOptions getPipelineOptions();
 	
-	// ------------------------------------------------------------------------
-	
-	public StreamExecutionEnvironment getExecutionEnvironment() {
-		return env;
-	}
+	public <T> DataStream<T> getInputDataStream(PInput value);
 
-	public PipelineOptions getPipelineOptions() {
-		return options;
-	}
-	
-	@SuppressWarnings("unchecked")
-	public <T> DataStream<T> getInputDataStream(PValue value) {
-		return (DataStream<T>) dataStreams.get(value);
-	}
+	public <T> WindowedDataStream<T> getInputWindowedDataStream(PInput value);
 
-	@SuppressWarnings("unchecked")
-	public <T> WindowedDataStream<T> getInputWindowedDataStream(PValue value) {
-		return (WindowedDataStream<T>) windowedDataStreams.get(value);
-	}
+	public void setOutputDataStream(POutput value, DataStream<?> stream);
 
-	public void setOutputDataStream(PValue value, DataStream<?> stream) {
-		if (!dataStreams.containsKey(value)) {
-			dataStreams.put(value, stream);
-		}
-	}
+	public void setOutputWindowedDataStream(POutput value, WindowedDataStream<?> stream);
 
-	public void setOutputWindowedDataStream(PValue value, WindowedDataStream<?> stream) {
-		if (!windowedDataStreams.containsKey(value)) {
-			windowedDataStreams.put(value, stream);
-		}
-	}
+	public <T> TypeInformation<T> getTypeInfo(POutput output);
 
-//	@SuppressWarnings("unchecked")
-//	public <T> DataSet<T> getSideInputDataSet(PCollectionView<?> value) {
-//		return (DataSet<T>) broadcastDataSets.get(value);
-//	}
-//
-//	public void setSideInputDataSet(PCollectionView<?> value, DataSet<?> set) {
-//		if (!broadcastDataSets.containsKey(value)) {
-//			broadcastDataSets.put(value, set);
-//		}
-//	}
-	
-	@SuppressWarnings("unchecked")
-	public <T> TypeInformation<T> getTypeInfo(PValue output) {
-		if (output instanceof TypedPValue) {
-			Coder<?> outputCoder = ((TypedPValue) output).getCoder();
-			if (outputCoder instanceof KvCoder) {
-				return new KvCoderTypeInformation((KvCoder) outputCoder);
-			} else {
-				return new CoderTypeInformation(outputCoder);
-			}
-		}
-		return new GenericTypeInfo<T>((Class<T>)Object.class);
-	}
+	public PInput getInput(PTransform<?, ?> transform);
+
+	public POutput getOutput(PTransform<?, ?> transform);
+
+	public CoderRegistry getCoderRegistry(PTransform<?, ?> transform);
 }
