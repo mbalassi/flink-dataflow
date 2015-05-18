@@ -149,6 +149,28 @@ Copyright 2015 Stephan Ewen, Aljoscha Krettek, Max Michels, dataArtisans
 				</configuration>
 			</plugin>
 
+			<!-- Checkstyle -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-checkstyle-plugin</artifactId>
+				<version>2.12.1</version>
+				<executions>
+					<execution>
+						<id>validate</id>
+						<phase>validate</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<suppressionsLocation>/tools/suppressions.xml</suppressionsLocation>
+					<suppressionsFileExpression>/checkstyle.suppressions.file</suppressionsFileExpression>
+					<configLocation>/tools/checkstyle.xml</configLocation>
+					<logViolationsToConsole>true</logViolationsToConsole>
+				</configuration>
+			</plugin>
+
 			<!-- Integration Tests -->
 			<plugin>
 				<artifactId>maven-failsafe-plugin</artifactId>
@@ -207,22 +229,23 @@ Copyright 2015 Stephan Ewen, Aljoscha Krettek, Max Michels, dataArtisans
 				</executions>
 			</plugin>
 
-                        <plugin>
-                          <groupId>org.codehaus.mojo</groupId>
-                          <artifactId>exec-maven-plugin</artifactId>
-                          <version>1.2.1</version>
-                          <configuration>
-                            <executable>java</executable>
-                            <arguments>
-                              <argument>-classpath</argument>
-                              <classpath />
-                              <argument>${clazz}</argument>
-                              <argument>--input=${input}</argument>
-                              <argument>--output=${output}</argument>
-                              <argument>--parallelism=${parallelism}</argument>
-                            </arguments>
-                          </configuration>
-                        </plugin>
+			<!-- Default execution -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>1.2.1</version>
+				<configuration>
+					<executable>java</executable>
+					<arguments>
+						<argument>-classpath</argument>
+						<classpath />
+						<argument>${clazz}</argument>
+						<argument>--input=${input}</argument>
+						<argument>--output=${output}</argument>
+						<argument>--parallelism=${parallelism}</argument>
+					</arguments>
+				</configuration>
+			</plugin>
 
 			<!-- Assembly for deployment -->
 			<plugin>

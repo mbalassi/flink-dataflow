@@ -18,7 +18,15 @@
 package com.dataartisans.flink.dataflow.translation;
 
 import com.dataartisans.flink.dataflow.io.ConsoleIO;
-import com.dataartisans.flink.dataflow.translation.functions.*;
+import com.dataartisans.flink.dataflow.translation.functions.FlinkCoGroupKeyedListAggregator;
+import com.dataartisans.flink.dataflow.translation.functions.FlinkCreateFunction;
+import com.dataartisans.flink.dataflow.translation.functions.FlinkDoFnFunction;
+import com.dataartisans.flink.dataflow.translation.functions.FlinkKeyedListAggregationFunction;
+import com.dataartisans.flink.dataflow.translation.functions.FlinkMultiOutputDoFnFunction;
+import com.dataartisans.flink.dataflow.translation.functions.FlinkMultiOutputPruningFunction;
+import com.dataartisans.flink.dataflow.translation.functions.FlinkPartialReduceFunction;
+import com.dataartisans.flink.dataflow.translation.functions.FlinkReduceFunction;
+import com.dataartisans.flink.dataflow.translation.functions.UnionCoder;
 import com.dataartisans.flink.dataflow.translation.types.CoderTypeInformation;
 import com.dataartisans.flink.dataflow.translation.types.KvCoderTypeInformation;
 import com.dataartisans.flink.dataflow.translation.wrappers.SourceInputFormat;
@@ -56,7 +64,16 @@ import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.io.AvroInputFormat;
 import org.apache.flink.api.java.io.AvroOutputFormat;
 import org.apache.flink.api.java.io.TextInputFormat;
-import org.apache.flink.api.java.operators.*;
+import org.apache.flink.api.java.operators.CoGroupOperator;
+import org.apache.flink.api.java.operators.DataSink;
+import org.apache.flink.api.java.operators.DataSource;
+import org.apache.flink.api.java.operators.FlatMapOperator;
+import org.apache.flink.api.java.operators.GroupCombineOperator;
+import org.apache.flink.api.java.operators.GroupReduceOperator;
+import org.apache.flink.api.java.operators.Grouping;
+import org.apache.flink.api.java.operators.Keys;
+import org.apache.flink.api.java.operators.MapPartitionOperator;
+import org.apache.flink.api.java.operators.UnsortedGrouping;
 import org.apache.flink.core.fs.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -490,8 +507,8 @@ public class FlinkTransformTranslators {
 	}
 
 	private static void transformSideInputs(List<PCollectionView<?>> sideInputs,
-	                                        MapPartitionOperator<?, ?> outputDataSet,
-	                                        TranslationContext context) {
+											MapPartitionOperator<?, ?> outputDataSet,
+											TranslationContext context) {
 		// get corresponding Flink broadcast DataSets
 		for(PCollectionView<?> input : sideInputs) {
 			DataSet<?> broadcastSet = context.getSideInputDataSet(input);
@@ -534,7 +551,7 @@ public class FlinkTransformTranslators {
 
 			DataSet<KV<K, CoGbkResult>> out = new CoGroupOperator<>(inputDataSet1, inputDataSet2,
 																	keySelector1, keySelector2,
-					                                                aggregator, typeInfo, null, transform.getName());
+																	aggregator, typeInfo, null, transform.getName());
 			context.setOutputDataSet(context.getOutput(transform), out);
 		}
 	}

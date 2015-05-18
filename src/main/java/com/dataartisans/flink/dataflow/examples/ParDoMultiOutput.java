@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *	 http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -51,36 +51,34 @@ public class ParDoMultiOutput {
 		final TupleTag<Integer> wordLengthsAboveCutOffTag = new TupleTag<Integer>(){};
 		final TupleTag<String> markedWordsTag = new TupleTag<String>(){};
 
-		PCollectionTuple results =
-		 words.apply(ParDo
-				 .withOutputTags(wordsBelowCutOffTag, TupleTagList.of(wordLengthsAboveCutOffTag)
-					     .and(markedWordsTag))
-			     .of(new DoFn<String, String>() {
-				     final TupleTag<String> specialWordsTag = new TupleTag<String>() {
-				     };
+		PCollectionTuple results = words.apply(ParDo
+				.withOutputTags(wordsBelowCutOffTag, TupleTagList.of(wordLengthsAboveCutOffTag)
+					.and(markedWordsTag))
+				.of(new DoFn<String, String>() {
+					final TupleTag<String> specialWordsTag = new TupleTag<String>() {
+					};
 
-				     public void processElement(ProcessContext c) {
-					     String word = c.element();
-					     if (word.length() <= wordLengthCutOff) {
-						     c.output(word);
-					     } else {
-						     c.sideOutput(wordLengthsAboveCutOffTag, word.length());
-					     }
-					     if (word.startsWith("MAA")) {
-						     c.sideOutput(markedWordsTag, word);
-					     }
+					public void processElement(ProcessContext c) {
+						String word = c.element();
+						if (word.length() <= wordLengthCutOff) {
+							c.output(word);
+						} else {
+							c.sideOutput(wordLengthsAboveCutOffTag, word.length());
+						}
+						if (word.startsWith("MAA")) {
+							c.sideOutput(markedWordsTag, word);
+						}
 
-					     if (word.startsWith("SPECIAL")) {
-						     c.sideOutput(specialWordsTag, word);
-					     }
-				     }
-			     }));
+						if (word.startsWith("SPECIAL")) {
+							c.sideOutput(specialWordsTag, word);
+						}
+					}
+				}));
 
 		// Extract the PCollection results, by tag.
 		PCollection<String> wordsBelowCutOff = results.get(wordsBelowCutOffTag);
-		PCollection<Integer> wordLengthsAboveCutOff = results.get
-		     (wordLengthsAboveCutOffTag);
-	    PCollection<String> markedWords = results.get(markedWordsTag);
+		PCollection<Integer> wordLengthsAboveCutOff = results.get(wordLengthsAboveCutOffTag);
+		PCollection<String> markedWords = results.get(markedWordsTag);
 
 		markedWords.apply(ConsoleIO.Write.create());
 

@@ -133,12 +133,18 @@ public class CoderTypeSerializer<T> extends TypeSerializer<T> {
 
 	@Override
 	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
+		if (this == o) {
+			return true;
+		}
+		if (o == null || getClass() != o.getClass()) {
+			return false;
+		}
 
 		CoderTypeSerializer that = (CoderTypeSerializer) o;
 
-		if (!coder.equals(that.coder)) return false;
+		if (!coder.equals(that.coder)) {
+			return false;
+		}
 
 		return true;
 	}
