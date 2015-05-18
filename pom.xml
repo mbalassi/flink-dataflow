@@ -171,6 +171,42 @@ Copyright 2015 Stephan Ewen, Aljoscha Krettek, Max Michels, dataArtisans
 				</configuration>
 			</plugin>
 
+			<!-- Licensing -->
+			<plugin>
+				<groupId>org.apache.rat</groupId>
+				<artifactId>apache-rat-plugin</artifactId>
+				<version>0.10</version>
+				<executions>
+					<execution>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<excludeSubProjects>false</excludeSubProjects>
+					<numUnapprovedLicenses>0</numUnapprovedLicenses>
+					<excludes>
+						<!-- Additional files like .gitignore etc.-->
+						<exclude>**/.*</exclude>
+						<exclude>**/*.prefs</exclude>
+						<!-- Resource files which have values. -->
+						<exclude>**/resources/**</exclude>
+						<!-- Administrative files in the main trunk. -->
+						<exclude>**/README.md</exclude>
+						<exclude>**/*.creole</exclude>
+						<!-- Build fields -->
+						<exclude>tools/checkstyle.xml</exclude>
+						<exclude>tools/suppressions.xml</exclude>
+						<exclude>**/pom.xml</exclude>
+						<exclude>**/*.iml</exclude>
+						<!-- Generated content -->
+						<exclude>**/target/**</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+
 			<!-- Integration Tests -->
 			<plugin>
 				<artifactId>maven-failsafe-plugin</artifactId>

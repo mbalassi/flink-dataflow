@@ -25,11 +25,13 @@ import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
 import com.google.cloud.dataflow.sdk.transforms.ParDo;
+import com.google.cloud.dataflow.sdk.util.ExecutionContext;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.base.Joiner;
 import org.apache.flink.test.util.JavaProgramTestBase;
 import org.joda.time.Instant;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -98,6 +100,12 @@ class ReadSource extends Source<Integer> {
 			res.add(new ReadSource(Math.round(from + i * step), Math.round(from + (i + 1) * step)));
 		}
 		return res;
+	}
+
+	@Override
+	public Reader<Integer> createReader(
+			PipelineOptions options, @Nullable ExecutionContext executionContext) throws IOException {
+		return new RangeReader(this);
 	}
 
 	@Override

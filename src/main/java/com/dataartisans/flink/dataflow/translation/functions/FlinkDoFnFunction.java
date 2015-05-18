@@ -85,6 +85,7 @@ public class FlinkDoFnFunction<IN, OUT> extends RichMapPartitionFunction<IN, OUT
 		public ProcessContext(DoFn<IN, OUT> fn, Collector<OUT> outCollector) {
 			fn.super();
 			this.outCollector = outCollector;
+			super.setupDelegateAggregators();
 		}
 
 		@Override
