@@ -30,10 +30,11 @@ import java.io.Serializable;
  * the combine function as an aggregator in a {@link com.google.cloud.dataflow.sdk.transforms.ParDo}
  * operation.
  */
-public class CombineFnAggregatorWrapper<AI, AA, AR> implements Aggregator<AI>, Accumulator<AI, Serializable> {
+public class CombineFnAggregatorWrapper<AI, AA, AR> implements Aggregator<AI, AR>, Accumulator<AI, Serializable> {
 	
 	private AA aa;
 	private Combine.CombineFn<? super AI, AA, AR> combiner;
+	private String name;
 
 	public CombineFnAggregatorWrapper() {
 	}
@@ -41,6 +42,7 @@ public class CombineFnAggregatorWrapper<AI, AA, AR> implements Aggregator<AI>, A
 	public CombineFnAggregatorWrapper(Combine.CombineFn<? super AI, AA, AR> combiner) {
 		this.combiner = combiner;
 		this.aa = combiner.createAccumulator();
+		this.name = "FlinkAggregatorWrapper" + hashCode();
 	}
 
 	@Override
@@ -78,5 +80,15 @@ public class CombineFnAggregatorWrapper<AI, AA, AR> implements Aggregator<AI>, A
 	public void addValue(AI value) {
 		add(value);
 	}
-	
+
+	@Override
+	public String getName() {
+		return null;
+	}
+
+	@Override
+	public Combine.CombineFn getCombineFn() {
+		return combiner;
+	}
+
 }

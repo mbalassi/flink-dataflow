@@ -143,13 +143,9 @@ public class UnionCoder extends StandardCoder<RawUnionValue> {
 	}
 
 	@Override
-	public boolean isDeterministic() {
+	public void verifyDeterministic() throws Coder.NonDeterministicException {
 		for (Coder<?> elementCoder : elementCoders) {
-			if (!elementCoder.isDeterministic()) {
-				return false;
-			}
+			elementCoder.verifyDeterministic();
 		}
-
-		return true;
 	}
 }

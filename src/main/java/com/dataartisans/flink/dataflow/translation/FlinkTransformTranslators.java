@@ -23,10 +23,11 @@ import com.dataartisans.flink.dataflow.translation.types.CoderTypeInformation;
 import com.dataartisans.flink.dataflow.translation.types.KvCoderTypeInformation;
 import com.dataartisans.flink.dataflow.translation.wrappers.SourceInputFormat;
 import com.google.api.client.util.Maps;
+import com.google.cloud.dataflow.sdk.coders.CannotProvideCoderException;
 import com.google.cloud.dataflow.sdk.coders.Coder;
 import com.google.cloud.dataflow.sdk.coders.KvCoder;
 import com.google.cloud.dataflow.sdk.io.AvroIO;
-//import com.google.cloud.dataflow.sdk.io.ReadSource;
+import com.google.cloud.dataflow.sdk.io.Read;
 import com.google.cloud.dataflow.sdk.io.Source;
 import com.google.cloud.dataflow.sdk.io.TextIO;
 import com.google.cloud.dataflow.sdk.transforms.Combine;
@@ -106,7 +107,7 @@ public class FlinkTransformTranslators {
 		//TRANSLATORS.put(PubsubIO.Write.Bound.class, null);
 
 		//TODO: fix me
-//		TRANSLATORS.put(ReadSource.Bound.class, new ReadSourceTranslator());
+		TRANSLATORS.put(Read.Bound.class, new ReadSourceTranslator());
 
 		TRANSLATORS.put(TextIO.Read.Bound.class, new TextIOReadTranslator());
 		TRANSLATORS.put(TextIO.Write.Bound.class, new TextIOWriteTranslator());
@@ -122,21 +123,21 @@ public class FlinkTransformTranslators {
 		return TRANSLATORS.get(transform.getClass());
 	}
 
-//	private static class ReadSourceTranslator<T> implements FlinkPipelineTranslator.TransformTranslator<ReadSource.Bound<T>> {
-//
-//		@Override
-//		public void translateNode(ReadSource.Bound<T> transform, TranslationContext context) {
-//			String name = transform.getName();
-//			Source<T> source = transform.getSource();
-//			Coder<T> coder = transform.getOutput().getCoder();
-//
-//			TypeInformation<T> typeInformation = context.getTypeInfo(transform.getOutput());
-//
-//			DataSource<T> dataSource = new DataSource<>(context.getExecutionEnvironment(), new SourceInputFormat<>(source, context.getPipelineOptions(), coder), typeInformation, name);
-//
-//			context.setOutputDataSet(transform.getOutput(), dataSource);
-//		}
-//	}
+	private static class ReadSourceTranslator<T> implements FlinkPipelineTranslator.TransformTranslator<Read.Bound<T>> {
+
+		@Override
+		public void translateNode(Read.Bound<T> transform, TranslationContext context) {
+			String name = transform.getName();
+			Source<T> source = transform.getSource();
+			Coder<T> coder = ((TypedPValue) context.getOutput(transform)).getCoder();
+
+			TypeInformation<T> typeInformation = context.getTypeInfo(context.getOutput(transform));
+
+			DataSource<T> dataSource = new DataSource<>(context.getExecutionEnvironment(), new SourceInputFormat<>(source, context.getPipelineOptions(), coder), typeInformation, name);
+
+			context.setOutputDataSet(context.getOutput(transform), dataSource);
+		}
+	}
 
 	private static class AvroIOReadTranslator<T> implements FlinkPipelineTranslator.TransformTranslator<AvroIO.Read.Bound<T>> {
 		private static final Logger LOG = LoggerFactory.getLogger(AvroIOReadTranslator.class);
@@ -289,7 +290,12 @@ public class FlinkTransformTranslators {
 			KvCoder<K, VI> inputCoder = (KvCoder<K, VI>)((TypedPValue) context.getInput(transform)).getCoder();
 
 			Coder<VA> accumulatorCoder =
-					keyedCombineFn.getAccumulatorCoder(context.getCoderRegistry(transform), inputCoder.getKeyCoder(), inputCoder.getValueCoder());
+					null;
+			try {
+				accumulatorCoder = keyedCombineFn.getAccumulatorCoder(context.getCoderRegistry(transform), inputCoder.getKeyCoder(), inputCoder.getValueCoder());
+			} catch (CannotProvideCoderException e) {
+				throw new RuntimeException("Accumulator coder was not provided in CombinePerKey.", e);
+			}
 
 
 			TypeInformation<KV<K, VI>> kvCoderTypeInformation = new KvCoderTypeInformation<>(inputCoder);
@@ -459,7 +465,12 @@ public class FlinkTransformTranslators {
 			// in the FlatMap function using the Coder.
 
 			List<byte[]> serializedElements = Lists.newArrayList();
-			Coder<OUT> coder = transform.getDefaultOutputCoder(context.getInput(transform), (TypedPValue) context.getOutput(transform));
+			Coder<OUT> coder = null;
+			try {
+				coder = transform.getDefaultOutputCoder(context.getInput(transform), (TypedPValue) context.getOutput(transform));
+			} catch (CannotProvideCoderException e) {
+				throw new RuntimeException("Coder was not provided in Create.", e);
+			}
 			for (OUT element: elements) {
 				ByteArrayOutputStream bao = new ByteArrayOutputStream();
 				try {

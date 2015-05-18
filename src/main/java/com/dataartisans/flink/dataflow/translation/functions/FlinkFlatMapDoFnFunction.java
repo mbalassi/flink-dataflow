@@ -16,7 +16,6 @@
 package com.dataartisans.flink.dataflow.translation.functions;
 
 import com.dataartisans.flink.dataflow.translation.wrappers.CombineFnAggregatorWrapper;
-import com.dataartisans.flink.dataflow.translation.wrappers.SerializableFnAggregatorWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.transforms.Aggregator;
@@ -175,15 +174,8 @@ public class FlinkFlatMapDoFnFunction<IN, OUT> extends RichFlatMapFunction<IN, O
 		}
 
 		@Override
-		public <AI, AA, AO> Aggregator<AI> createAggregator(String name, Combine.CombineFn<? super AI, AA, AO> combiner) {
-			CombineFnAggregatorWrapper<AI, AA, AO> wrapper = new CombineFnAggregatorWrapper<AI, AA, AO>(combiner);
-			getRuntimeContext().addAccumulator(name, wrapper);
-			return wrapper;
-		}
-
-		@Override
-		public <AI, AO> Aggregator<AI> createAggregator(String name, SerializableFunction<Iterable<AI>, AO> serializableFunction) {
-			SerializableFnAggregatorWrapper<AI, AO> wrapper = new SerializableFnAggregatorWrapper<AI, AO>(serializableFunction);
+		protected <AI, AO> Aggregator<AI, AO> createAggregatorInternal(String name, Combine.CombineFn<AI, ?, AO> combiner) {
+			CombineFnAggregatorWrapper<AI, Object, AO> wrapper = new CombineFnAggregatorWrapper<>((Combine.CombineFn<AI, Object, AO>) combiner);
 			getRuntimeContext().addAccumulator(name, wrapper);
 			return wrapper;
 		}

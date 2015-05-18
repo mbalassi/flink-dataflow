@@ -28,6 +28,7 @@ import com.dataartisans.flink.dataflow.streaming.functions.FlinkPartialWindowRed
 import com.dataartisans.flink.dataflow.streaming.functions.FlinkWindowReduceFunction;
 import com.dataartisans.flink.dataflow.translation.types.CoderTypeInformation;
 import com.dataartisans.flink.dataflow.translation.types.KvCoderTypeInformation;
+import com.google.cloud.dataflow.sdk.coders.CannotProvideCoderException;
 import com.google.cloud.dataflow.sdk.coders.Coder;
 import com.google.cloud.dataflow.sdk.coders.KvCoder;
 import com.google.cloud.dataflow.sdk.coders.StandardCoder;
@@ -143,39 +144,14 @@ public class FlinkStreamingTransformTranslators {
 		WindowedDataStream outputDataStream;
 
 		if (windowFn instanceof FixedWindows) {
-//			reflection troubles for final value
-//			Duration size;
-//			try {
-//			Field field = windowFn.getClass().getDeclaredField("size");
-//			field.setAccessible(true);
-//			Class<?> targetType = field.getType();
-//			Object objectValue = targetType.getConstructor(long.class)
-//					.newInstance(0L);
-//			size = (Duration) field.get(objectValue);
-//			} catch (Exception e) {
-//				throw  new RuntimeException(e);
-//			}
-//			outputDataStream = inputDataStream.window(Time.of(size.getMillis(), TimeUnit.MILLISECONDS));
-			outputDataStream = inputDataStream.window(Time.of(1, TimeUnit.SECONDS));
+			FixedWindows fixedWindows = (FixedWindows) windowFn;
+			long sizeMillis = fixedWindows.getSize().getMillis();
+			outputDataStream = inputDataStream.window(Time.of(sizeMillis, TimeUnit.MILLISECONDS));
 		} else if (windowFn instanceof SlidingWindows) {
-//			Duration size;
-//			Duration period;
-//			try {
-//				Field field = windowFn.getClass().getDeclaredField("size");
-//				field.setAccessible(true);
-//				Class<?> targetType = field.getType();
-//				Object objectValue = targetType.getConstructor(Long.class).newInstance(0L);
-//				size = (Duration) field.get(objectValue);
-//
-//				field = windowFn.getClass().getDeclaredField("period");
-//				field.setAccessible(true);
-//				period = (Duration) field.get(objectValue);
-//
-//			} catch (Exception e) {
-//				throw  new RuntimeException(e);
-//			}
-//			outputDataStream = inputDataStream.window(Time.of(size.getMillis(), TimeUnit.MILLISECONDS)).every(Time.of(period.getMillis(), TimeUnit.MILLISECONDS));
-			outputDataStream = inputDataStream.window(Time.of(10, TimeUnit.SECONDS));
+			SlidingWindows slidingWindows = (SlidingWindows) windowFn;
+			long sizeMillis = slidingWindows.getSize().getMillis();
+			long periodMillis = slidingWindows.getPeriod().getMillis();
+			outputDataStream = inputDataStream.window(Time.of(sizeMillis, TimeUnit.MILLISECONDS)).every(Time.of(periodMillis, TimeUnit.MILLISECONDS));
 		} else {
 			throw new UnsupportedOperationException("Currently only Fixed and Sliding windows are supported.");
 		}
@@ -377,8 +353,13 @@ public class FlinkStreamingTransformTranslators {
 			Combine.KeyedCombineFn<K, VI, VA, VO> keyedCombineFn = (Combine.KeyedCombineFn<K, VI, VA, VO>) transform.getFn();
 
 			KvCoder<K, VI> inputCoder = (KvCoder<K, VI>) ((TypedPValue) context.getInput(transform)).getCoder();
-			Coder<VA> accumulatorCoder =
-					keyedCombineFn.getAccumulatorCoder(context.getCoderRegistry(transform), inputCoder.getKeyCoder(), inputCoder.getValueCoder());
+			Coder<VA> accumulatorCoder = null;
+			try {
+				accumulatorCoder = keyedCombineFn.getAccumulatorCoder(context.getCoderRegistry(transform),
+						inputCoder.getKeyCoder(), inputCoder.getValueCoder());
+			} catch (CannotProvideCoderException e) {
+				throw new RuntimeException("Accumulator coder was not provided in CombinePerKey.", e);
+			}
 
 			// TODO: use this type information for grouping
 			TypeInformation<KV<K, VI>> inputType = new KvCoderTypeInformation<>(inputCoder);
@@ -434,9 +415,15 @@ public class FlinkStreamingTransformTranslators {
 
 			TypeInformation<? extends KV<K, ? extends Iterable<VI>>> inputType = new CoderTypeInformation<>(inputCoder);
 
+
 //			// TODO: use this type information for grouping
-			KvCoderTypeInformation partialReduceTypeInfo = new KvCoderTypeInformation<>(KvCoder.of(((KvCoder) inputCoder).getKeyCoder()
-					, transform.getAccumulatorCoder(context.getCoderRegistry(transform), (PCollection) context.getInput(transform))));
+			KvCoderTypeInformation partialReduceTypeInfo = null;
+			try {
+				partialReduceTypeInfo = new KvCoderTypeInformation<>(KvCoder.of(((KvCoder) inputCoder).getKeyCoder()
+						, transform.getAccumulatorCoder(context.getCoderRegistry(transform), (PCollection) context.getInput(transform))));
+			} catch (CannotProvideCoderException e) {
+				throw new RuntimeException("Accumulator coder was not provided in CombineGroupedValues.", e);
+			}
 			TypeInformation<KV<K, VO>> reduceTypeInfo = context.getTypeInfo(context.getOutput(transform));
 
 			FlinkPartialWindowIteratorReduceFunction<K, VI, VA> partialReduceFunction = new FlinkPartialWindowIteratorReduceFunction<>(keyedCombineFn);
