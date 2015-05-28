@@ -18,12 +18,7 @@
 package com.dataartisans.flink.dataflow.translation.wrappers;
 
 import com.google.cloud.dataflow.sdk.io.Source;
-import com.google.cloud.dataflow.sdk.util.SerializableUtils;
 import org.apache.flink.core.io.InputSplit;
-import org.apache.flink.core.memory.DataInputView;
-import org.apache.flink.core.memory.DataOutputView;
-
-import java.io.IOException;
 
 /**
  * {@link org.apache.flink.core.io.InputSplit} for
@@ -54,21 +49,4 @@ public class SourceInputSplit<T> implements InputSplit {
 		return source;
 	}
 
-	@Override
-	public void write(DataOutputView out) throws IOException {
-		out.writeInt(splitNumber);
-		byte[] serializedSource = SerializableUtils.serializeToByteArray(source);
-		out.writeInt(serializedSource.length);
-		out.write(serializedSource);
-	}
-
-	@Override
-	@SuppressWarnings("unchecked")
-	public void read(DataInputView in) throws IOException {
-		splitNumber = in.readInt();
-		int length = in.readInt();
-		byte[] serializedSource = new byte[length];
-		in.read(serializedSource, 0, length);
-		source = (Source<T>) SerializableUtils.deserializeFromByteArray(serializedSource, "Input Source");
-	}
 }

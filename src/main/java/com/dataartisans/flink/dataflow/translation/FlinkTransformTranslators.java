@@ -273,7 +273,12 @@ public class FlinkTransformTranslators {
 		@Override
 		public void translateNode(ConsoleIO.Write.Bound transform, TranslationContext context) {
 			DataSet<?> inputDataSet = context.getInputDataSet(context.getInput(transform));
-			inputDataSet.print().name(transform.getName());
+			//print can not be named in Flink currently
+			try {
+				inputDataSet.print();
+			} catch (Exception e) {
+				throw new RuntimeException("Exception while executing the printing of the DataSet", e);
+			}
 		}
 	}
 

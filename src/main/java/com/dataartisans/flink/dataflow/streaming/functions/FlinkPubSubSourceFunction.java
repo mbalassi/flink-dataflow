@@ -24,8 +24,8 @@ import com.google.api.services.pubsub.model.PubsubMessage;
 import com.google.api.services.pubsub.model.PullRequest;
 import com.google.api.services.pubsub.model.PullResponse;
 import com.google.api.services.pubsub.model.Subscription;
-import org.apache.flink.streaming.api.functions.source.SourceFunction;
-import org.apache.flink.util.Collector;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.streaming.api.functions.source.RichSourceFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,12 +42,15 @@ import java.util.List;
  * {@link com.google.cloud.dataflow.sdk.values.KV} elements, extracts the key and merges the
  * accumulators resulting from the PartialReduce which produced the input VA.
  */
-public class FlinkPubSubSourceFunction implements SourceFunction<String> {
+public class FlinkPubSubSourceFunction extends RichSourceFunction<String> {
 
 	private static final Logger LOG = LoggerFactory.getLogger(FlinkPubSubSourceFunction.class);
 
 	private final String topic;
-	private volatile boolean isRunning = false;
+	private transient Pubsub pubsub;
+	private transient Subscription subscription;
+	private transient Subscription newSubscription;
+
 
 	//TODO: figure out how to use this with parallelism
 	public FlinkPubSubSourceFunction(String topic) {
@@ -55,43 +58,46 @@ public class FlinkPubSubSourceFunction implements SourceFunction<String> {
 	}
 
 	@Override
-	public void run(Collector<String> collector) throws Exception {
-		isRunning = true;
+	public void open(Configuration parameters) throws Exception {
 		LOG.info("Flink PubSub SourceFunction started.");
 
 		//Set up a PubSub connection
-		Pubsub  pubsub = PortableConfiguration.createPubsubClient();
-		Subscription subscription = new Subscription().setTopic(topic);
-		Subscription newSubscribtion = pubsub.subscriptions().create(subscription).execute();
-		LOG.info("Flink PubSub created new connection with name {}", newSubscribtion.getName());
+		pubsub = PortableConfiguration.createPubsubClient();
+		subscription = new Subscription().setTopic(topic);
+		newSubscription = pubsub.subscriptions().create(subscription).execute();
+		LOG.info("Flink PubSub created new connection with name {}", newSubscription.getName());
 
-
-		// Return immediately for smooth job cancellation
-		PullRequest pullRequest = new PullRequest().setReturnImmediately(true);
-
-		do {
-			// Read data
-			PullResponse pullResponse = pubsub.subscriptions().pull(pullRequest).execute();
-			PubsubMessage message = pullResponse.getPubsubEvent().getMessage();
-			if (message != null) {
-				collector.collect(new String(message.decodeData(), "UTF-8"));
-				LOG.debug("Received the following data: {}", new String(message.decodeData(), "UTF-8"));
-
-				// Acknowledge received data
-				// TODO: do async, batched ack for throughput
-				List<String> ackList = new ArrayList<>();
-				ackList.add(message.getMessageId());
-				AcknowledgeRequest ackRequest = new AcknowledgeRequest().setAckId(ackList);
-				pubsub.subscriptions().acknowledge(ackRequest);
-			} else {
-				LOG.debug("Received empty message.");
-			}
-		} while (isRunning);
 	}
 
 	@Override
-	public void cancel() {
-		isRunning = false;
-		LOG.info("Flink PubSub SourceFunction cancelling.");
+	public boolean reachedEnd() throws Exception {
+		return false;
 	}
+
+	@Override
+	public String next() throws Exception {
+		// Return immediately for smooth job cancellation
+		PullRequest pullRequest = new PullRequest().setReturnImmediately(true);
+		// Read data
+		PullResponse pullResponse = pubsub.subscriptions().pull(pullRequest).execute();
+		PubsubMessage message = pullResponse.getPubsubEvent().getMessage();
+		if (message != null) {
+			LOG.debug("Received the following data: {}", new String(message.decodeData(), "UTF-8"));
+
+			// Acknowledge received data
+			// TODO: do async, batched ack for throughput
+			List<String> ackList = new ArrayList<>();
+			ackList.add(message.getMessageId());
+			AcknowledgeRequest ackRequest = new AcknowledgeRequest().setAckId(ackList);
+			pubsub.subscriptions().acknowledge(ackRequest);
+
+			// This return is done after the acknowledgement,
+			// maybe lose an acknowledged message
+			return new String(message.decodeData(), "UTF-8");
+		} else {
+			LOG.debug("Received empty message.");
+			return new String();
+		}
+	}
+
 }
