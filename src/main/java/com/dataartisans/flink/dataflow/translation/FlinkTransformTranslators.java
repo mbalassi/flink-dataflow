@@ -376,10 +376,6 @@ public class FlinkTransformTranslators {
 
 			final DoFn<IN, OUT> doFn = transform.getFn();
 
-			if (doFn instanceof DoFn.RequiresKeyedState) {
-				LOG.error("Flink Batch Execution does not support Keyed State.");
-			}
-			
 			TypeInformation<OUT> typeInformation = context.getTypeInfo(context.getOutput(transform));
 
 			FlinkDoFnFunction<IN, OUT> doFnWrapper = new FlinkDoFnFunction<>(doFn, context.getPipelineOptions());
@@ -399,10 +395,6 @@ public class FlinkTransformTranslators {
 			DataSet<IN> inputDataSet = context.getInputDataSet(context.getInput(transform));
 
 			final DoFn<IN, OUT> doFn = transform.getFn();
-
-			if (doFn instanceof DoFn.RequiresKeyedState) {
-				LOG.error("Flink Batch Execution does not support Keyed State.");
-			}
 
 //			Map<TupleTag<?>, PCollection<?>> outputs = transform.getOutput().getAll();
 			Map<TupleTag<?>, PCollection<?>> outputs = null;

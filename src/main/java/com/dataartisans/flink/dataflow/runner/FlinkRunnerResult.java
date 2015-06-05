@@ -16,6 +16,10 @@
 package com.dataartisans.flink.dataflow.runner;
 
 import com.google.cloud.dataflow.sdk.PipelineResult;
+import com.google.cloud.dataflow.sdk.runners.AggregatorRetrievalException;
+import com.google.cloud.dataflow.sdk.runners.AggregatorValues;
+import com.google.cloud.dataflow.sdk.transforms.Aggregator;
+
 import java.util.Collections;
 import java.util.Map;
 
@@ -42,6 +46,15 @@ public class FlinkRunnerResult implements PipelineResult {
 	 * Return the final values of all {@link com.google.cloud.dataflow.sdk.transforms.Aggregator}s
 	 * used in the {@link com.google.cloud.dataflow.sdk.Pipeline}.
 	 */
+	//TODO fix me
+	@Override
+	public <T> AggregatorValues<T> getAggregatorValues(Aggregator<?, T> aggregator) throws AggregatorRetrievalException {
+//		if (aggregators.containsKey(aggregator.getName())){
+//			return (Aggregator<?, T>) aggregators.get(aggregator.getName());
+//		}
+		return null;
+	}
+
 	public Map<String, Object> getAggregators() {
 		return aggregators;
 	}
@@ -54,4 +67,5 @@ public class FlinkRunnerResult implements PipelineResult {
 	public State getState() {
 		return null;
 	}
+
 }

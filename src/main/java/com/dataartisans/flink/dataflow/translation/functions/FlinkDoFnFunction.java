@@ -94,11 +94,6 @@ public class FlinkDoFnFunction<IN, OUT> extends RichMapPartitionFunction<IN, OUT
 		}
 
 		@Override
-		public DoFn.KeyedState keyedState() {
-			throw new UnsupportedOperationException("Getting the keyed state is not supported!");
-		}
-
-		@Override
 		public Instant timestamp() {
 			return Instant.now();
 		}

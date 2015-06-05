@@ -110,11 +110,6 @@ public class FlinkFlatMapDoFnFunction<IN, OUT> extends RichFlatMapFunction<IN, O
 		}
 
 		@Override
-		public DoFn.KeyedState keyedState() {
-			throw new UnsupportedOperationException("Getting the keyed state is not supported!");
-		}
-
-		@Override
 		public Instant timestamp() {
 			return Instant.now();
 		}

@@ -98,7 +98,7 @@ Copyright 2015 Stephan Ewen, Aljoscha Krettek, Max Michels, dataArtisans
 		<dependency>
 			<groupId>com.google.cloud.dataflow</groupId>
 			<artifactId>google-cloud-dataflow-java-sdk-all</artifactId>
-			<version>0.4.150418</version>
+			<version>0.4.150602</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.slf4j</groupId>
@@ -110,7 +110,7 @@ Copyright 2015 Stephan Ewen, Aljoscha Krettek, Max Michels, dataArtisans
 		<dependency>
 			<groupId>com.google.cloud.dataflow</groupId>
 			<artifactId>google-cloud-dataflow-java-examples-all</artifactId>
-			<version>0.4.150418</version>
+			<version>0.4.150602</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.slf4j</groupId>

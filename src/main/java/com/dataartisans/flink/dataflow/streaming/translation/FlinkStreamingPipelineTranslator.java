@@ -49,6 +49,8 @@ import java.util.Map;
  */
 public class FlinkStreamingPipelineTranslator implements PipelineVisitor, StreamingTranslationContext {
 
+	private final static String DEFAULT_TRANSFORM_NAME = "Unknown Transform";
+
 	private int depth = 0;
 
 	private boolean inComposite = false;
@@ -96,7 +98,9 @@ public class FlinkStreamingPipelineTranslator implements PipelineVisitor, Stream
 	public void enterCompositeTransform(TransformTreeNode node) {
 		System.out.println(genSpaces(this.depth) + "enterCompositeTransform- " + formatNodeName(node));
 		PTransform<?, ?> transform = node.getTransform();
-		currentTransform = AppliedPTransform.of(node.getInput(), node.getOutput(), (PTransform<PInput, POutput>) node.getTransform());
+		String name = transform == null ? DEFAULT_TRANSFORM_NAME : transform.getName();
+		currentTransform = AppliedPTransform.of(name, node.getInput(), node.getOutput(),
+				(PTransform<PInput, POutput>) node.getTransform());
 
 		if (transform != null) {
 			TransformTranslator<?> translator = FlinkStreamingTransformTranslators.getTranslator(transform);
@@ -118,7 +122,9 @@ public class FlinkStreamingPipelineTranslator implements PipelineVisitor, Stream
 	@Override
 	public void leaveCompositeTransform(TransformTreeNode node) {
 		PTransform<?, ?> transform = node.getTransform();
-		currentTransform = AppliedPTransform.of(node.getInput(), node.getOutput(), (PTransform<PInput, POutput>) node.getTransform());
+		String name = transform == null ? DEFAULT_TRANSFORM_NAME : transform.getName();
+		currentTransform = AppliedPTransform.of(name, node.getInput(), node.getOutput(),
+				(PTransform<PInput, POutput>) node.getTransform());
 
 		if (transform != null) {
 			TransformTranslator<?> translator = FlinkStreamingTransformTranslators.getTranslator(transform);
@@ -144,7 +150,9 @@ public class FlinkStreamingPipelineTranslator implements PipelineVisitor, Stream
 
 		// the transformation applied in this node
 		PTransform<?, ?> transform = node.getTransform();
-		currentTransform = AppliedPTransform.of(node.getInput(), node.getOutput(), (PTransform<PInput, POutput>) node.getTransform());
+		String name = transform == null ? DEFAULT_TRANSFORM_NAME : transform.getName();
+		currentTransform = AppliedPTransform.of(name, node.getInput(), node.getOutput(),
+				(PTransform<PInput, POutput>) node.getTransform());
 
 		// the translator to the Flink operation(s)
 		TransformTranslator<?> translator = FlinkStreamingTransformTranslators.getTranslator(transform);
@@ -232,18 +240,18 @@ public class FlinkStreamingPipelineTranslator implements PipelineVisitor, Stream
 
 	@Override
 	public PInput getInput(PTransform<?, ?> transform) {
-		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.transform == transform, "can only be called with current transform");
-		return this.currentTransform.input;
+		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.getTransform() == transform, "can only be called with current transform");
+		return this.currentTransform.getInput();
 	}
 
 	@Override
 	public PValue getOutput(PTransform<?, ?> transform) {
-		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.transform == transform, "can only be called with current transform");
-		return (PValue) this.currentTransform.output;
+		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.getTransform() == transform, "can only be called with current transform");
+		return (PValue) this.currentTransform.getOutput();
 	}
 
 	public CoderRegistry getCoderRegistry(PTransform<?, ?> transform){
-		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.transform == transform, "can only be called with current transform");
+		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.getTransform() == transform, "can only be called with current transform");
 		return pipeline.getCoderRegistry();
 	}
 
