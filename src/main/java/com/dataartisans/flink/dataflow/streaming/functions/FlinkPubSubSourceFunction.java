@@ -51,6 +51,7 @@ public class FlinkPubSubSourceFunction extends RichSourceFunction<String> {
 	private transient Subscription subscription;
 	private transient Subscription newSubscription;
 
+	private boolean isRunning = false;
 
 	//TODO: figure out how to use this with parallelism
 	public FlinkPubSubSourceFunction(String topic) {
@@ -70,34 +71,35 @@ public class FlinkPubSubSourceFunction extends RichSourceFunction<String> {
 	}
 
 	@Override
-	public boolean reachedEnd() throws Exception {
-		return false;
-	}
+	public void run(SourceContext<String> ctx) throws Exception {
+		isRunning = true;
+		while (isRunning) {
+			// Return immediately for smooth job cancellation
+			PullRequest pullRequest = new PullRequest().setReturnImmediately(true);
+			// Read data
+			PullResponse pullResponse = pubsub.subscriptions().pull(pullRequest).execute();
+			PubsubMessage message = pullResponse.getPubsubEvent().getMessage();
+			if (message != null) {
+				LOG.debug("Received the following data: {}", new String(message.decodeData(), "UTF-8"));
 
-	@Override
-	public String next() throws Exception {
-		// Return immediately for smooth job cancellation
-		PullRequest pullRequest = new PullRequest().setReturnImmediately(true);
-		// Read data
-		PullResponse pullResponse = pubsub.subscriptions().pull(pullRequest).execute();
-		PubsubMessage message = pullResponse.getPubsubEvent().getMessage();
-		if (message != null) {
-			LOG.debug("Received the following data: {}", new String(message.decodeData(), "UTF-8"));
+				// Acknowledge received data
+				// TODO: do async, batched ack for throughput
+				List<String> ackList = new ArrayList<>();
+				ackList.add(message.getMessageId());
+				AcknowledgeRequest ackRequest = new AcknowledgeRequest().setAckId(ackList);
+				pubsub.subscriptions().acknowledge(ackRequest);
 
-			// Acknowledge received data
-			// TODO: do async, batched ack for throughput
-			List<String> ackList = new ArrayList<>();
-			ackList.add(message.getMessageId());
-			AcknowledgeRequest ackRequest = new AcknowledgeRequest().setAckId(ackList);
-			pubsub.subscriptions().acknowledge(ackRequest);
-
-			// This return is done after the acknowledgement,
-			// maybe lose an acknowledged message
-			return new String(message.decodeData(), "UTF-8");
-		} else {
-			LOG.debug("Received empty message.");
-			return new String();
+				// This return is done after the acknowledgement,
+				// maybe lose an acknowledged message
+				ctx.collect(new String(message.decodeData(), "UTF-8"));
+			} else {
+				LOG.debug("Received empty message.");
+			}
 		}
 	}
 
+	@Override
+	public void cancel() {
+		isRunning = false;
+	}
 }

@@ -32,6 +32,7 @@ import com.google.cloud.dataflow.sdk.transforms.ParDo;
 import com.google.cloud.dataflow.sdk.transforms.SerializableComparator;
 import com.google.cloud.dataflow.sdk.transforms.Top;
 import com.google.cloud.dataflow.sdk.transforms.windowing.CalendarWindows;
+import com.google.cloud.dataflow.sdk.transforms.windowing.FixedWindows;
 import com.google.cloud.dataflow.sdk.transforms.windowing.IntervalWindow;
 import com.google.cloud.dataflow.sdk.transforms.windowing.Sessions;
 import com.google.cloud.dataflow.sdk.transforms.windowing.Window;
@@ -53,6 +54,8 @@ public class TopWikipediaSessions {
 	 * Extracts user and timestamp from a TableRow representing a Wikipedia edit.
 	 */
 	static class ExtractUserAndTimestamp extends DoFn<TableRow, String> {
+		private static final long serialVersionUID = 0;
+
 		@Override
 		public void processElement(ProcessContext c) {
 			TableRow row = c.element();
@@ -71,10 +74,14 @@ public class TopWikipediaSessions {
 	 */
 	static class ComputeSessions
 			extends PTransform<PCollection<String>, PCollection<KV<String, Long>>> {
+		private static final long serialVersionUID = 0;
+
 		@Override
 		public PCollection<KV<String, Long>> apply(PCollection<String> actions) {
 			return actions
 					.apply(Window.<String>into(Sessions.withGapDuration(Duration.standardHours(1))))
+// TODO: try with streaming
+//					.apply(Window.<String>into(FixedWindows.of(Duration.standardHours(1)))
 
 					.apply(Count.<String>perElement());
 		}
@@ -85,21 +92,54 @@ public class TopWikipediaSessions {
 	 */
 	private static class TopPerMonth
 			extends PTransform<PCollection<KV<String, Long>>, PCollection<List<KV<String, Long>>>> {
+		private static final long serialVersionUID = 0;
+
 		@Override
 		public PCollection<List<KV<String, Long>>> apply(PCollection<KV<String, Long>> sessions) {
 			return sessions
 					.apply(Window.<KV<String, Long>>into(CalendarWindows.months(1)))
 
 					.apply(Top.of(1, new SerializableComparator<KV<String, Long>>() {
+						private static final long serialVersionUID = 0;
+
 						@Override
 						public int compare(KV<String, Long> o1, KV<String, Long> o2) {
 							return Long.compare(o1.getValue(), o2.getValue());
 						}
-					}));
+					}).withoutDefaults());
+		}
+	}
+
+	static class SessionsToStringsDoFn extends DoFn<KV<String, Long>, KV<String, Long>>
+			implements DoFn.RequiresWindowAccess {
+
+		private static final long serialVersionUID = 0;
+
+		@Override
+		public void processElement(ProcessContext c) {
+			c.output(KV.of(
+					c.element().getKey() + " : " + c.window(), c.element().getValue()));
+		}
+	}
+
+	static class FormatOutputDoFn extends DoFn<List<KV<String, Long>>, String>
+			implements DoFn.RequiresWindowAccess {
+		private static final long serialVersionUID = 0;
+
+		@Override
+		public void processElement(ProcessContext c) {
+			for (KV<String, Long> item : c.element()) {
+				String session = item.getKey();
+				long count = item.getValue();
+				c.output(session + " : " + count + " : " + ((IntervalWindow) c.window()).start());
+			}
 		}
 	}
 
 	static class ComputeTopSessions extends PTransform<PCollection<TableRow>, PCollection<String>> {
+
+		private static final long serialVersionUID = 0;
+
 		private final double samplingThreshold;
 
 		public ComputeTopSessions(double samplingThreshold) {
@@ -113,6 +153,8 @@ public class TopWikipediaSessions {
 
 					.apply(ParDo.named("SampleUsers").of(
 							new DoFn<String, String>() {
+								private static final long serialVersionUID = 0;
+
 								@Override
 								public void processElement(ProcessContext c) {
 									if (Math.abs(c.element().hashCode()) <= Integer.MAX_VALUE * samplingThreshold) {
@@ -123,31 +165,9 @@ public class TopWikipediaSessions {
 
 					.apply(new ComputeSessions())
 
-					.apply(ParDo.named("SessionsToStrings").of(
-							new DoFn<KV<String, Long>, KV<String, Long>>() {
-								@Override
-								public void processElement(ProcessContext c) {
-									c.output(KV.of(
-											c.element().getKey() + " : "
-													+ c.window(), c.element().getValue()));
-								}
-							}))
-
+					.apply(ParDo.named("SessionsToStrings").of(new SessionsToStringsDoFn()))
 					.apply(new TopPerMonth())
-
-					.apply(ParDo.named("FormatOutput").of(
-							new DoFn<List<KV<String, Long>>, String>() {
-								@Override
-								public void processElement(ProcessContext c) {
-									for (KV<String, Long> item : c.element()) {
-										String session = item.getKey();
-										long count = item.getValue();
-										c.output(
-												session + " : " + count + " : "
-														+ c.window().maxTimestamp());
-									}
-								}
-							}));
+					.apply(ParDo.named("FormatOutput").of(new FormatOutputDoFn()));
 		}
 	}
 

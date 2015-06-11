@@ -86,7 +86,7 @@ public class WordCountJoin3ITCase extends JavaProgramTestBase {
 
 		Pipeline p = Pipeline.create(options);
 
-		/* Create two PCollections and join them */
+		/* Create three PCollections and join them */
 		PCollection<KV<String,Long>> occurences1 = p.apply(Create.of(WORDS_1))
 				.apply(ParDo.of(new ExtractWordsFn()))
 				.apply(Count.<String>perElement());
@@ -99,7 +99,7 @@ public class WordCountJoin3ITCase extends JavaProgramTestBase {
 				.apply(ParDo.of(new ExtractWordsFn()))
 				.apply(Count.<String>perElement());
 
-		/* CoGroup the two collections */
+		/* CoGroup the three collections */
 		PCollection<KV<String, CoGbkResult>> mergedOccurences = KeyedPCollectionTuple
 				.of(tag1, occurences1)
 				.and(tag2, occurences2)

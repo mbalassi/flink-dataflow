@@ -480,11 +480,12 @@ public class FlinkTransformTranslators {
 
 			List<byte[]> serializedElements = Lists.newArrayList();
 			Coder<OUT> coder = null;
-			try {
-				coder = transform.getDefaultOutputCoder(context.getInput(transform), (TypedPValue) context.getOutput(transform));
-			} catch (CannotProvideCoderException e) {
-				throw new RuntimeException("Coder was not provided in Create.", e);
-			}
+//			try {
+				coder = context.getOutput(transform).getCoder();
+//				coder = transform.getDefaultOutputCoder(context.getInput(transform), (TypedPValue) context.getOutput(transform));
+//			} catch (CannotProvideCoderException e) {
+//				throw new RuntimeException("Coder was not provided in Create.", e);
+//			}
 			for (OUT element: elements) {
 				ByteArrayOutputStream bao = new ByteArrayOutputStream();
 				try {

@@ -43,9 +43,9 @@ public interface TranslationContext {
 	
 	public <T> TypeInformation<T> getTypeInfo(POutput output);
 
-	public PInput getInput(PTransform<?, ?> transform);
+	<InputT extends PInput> InputT getInput(PTransform<InputT, ?> transform);
 
-	public POutput getOutput(PTransform<?, ?> transform);
+	<OutputT extends POutput> OutputT getOutput(PTransform<?, OutputT> transform);
 
 	public CoderRegistry getCoderRegistry(PTransform<?, ?> transform);
 }
