@@ -115,7 +115,7 @@ public class FlinkBatchPipelineRunner extends FlinkPipelineRunner {
 		
 		JobExecutionResult result = null;
 		try {
-			System.out.println(flinkEnv.getExecutionPlan());
+//			System.out.println(flinkEnv.getExecutionPlan());
 			result = flinkEnv.execute();
 		}
 		catch (Exception e) {

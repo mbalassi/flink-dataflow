@@ -444,7 +444,7 @@ public class FlinkTransformTranslators {
 		@Override
 		public void translateNode(Flatten.FlattenPCollectionList<T> transform, TranslationContext context) {
 //			List<PCollection<T>> allInputs = transform.getInput().getAll();
-			List<PCollection<T>> allInputs = null;
+			List<PCollection<T>> allInputs = context.getInput(transform).getAll();
 			DataSet<T> result = null;
 			for(PCollection<T> collection : allInputs) {
 				DataSet<T> current = context.getInputDataSet(collection);

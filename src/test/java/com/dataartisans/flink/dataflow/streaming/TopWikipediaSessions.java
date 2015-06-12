@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.dataartisans.flink.dataflow;
+package com.dataartisans.flink.dataflow.streaming;
 
+import com.dataartisans.flink.dataflow.runner.FlinkPipelineOptions;
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.TableRowJsonCoder;
@@ -79,11 +80,12 @@ public class TopWikipediaSessions {
 		@Override
 		public PCollection<KV<String, Long>> apply(PCollection<String> actions) {
 			return actions
-					.apply(Window.<String>into(Sessions.withGapDuration(Duration.standardHours(1))))
+//					.apply(Window.<String>into(Sessions.withGapDuration(Duration.standardHours(1))))
 // TODO: try with streaming
-//					.apply(Window.<String>into(FixedWindows.of(Duration.standardHours(1)))
+					.apply(Window.<String>into(FixedWindows.of(Duration.millis(1))))
+//					.apply(Window.<String>into(FixedWindows.of(Duration.standardHours(1))))
 
-					.apply(Count.<String>perElement());
+							.apply(Count.<String>perElement());
 		}
 	}
 
@@ -176,7 +178,7 @@ public class TopWikipediaSessions {
 	 *
 	 * <p> Inherits standard Dataflow configuration options.
 	 */
-	private static interface Options extends PipelineOptions {
+	private static interface Options extends PipelineOptions, FlinkPipelineOptions {
 		@Description(
 				"Input specified as a GCS path containing a BigQuery table exported as json")
 		@Default.String(EXPORTED_WIKI_TABLE)
@@ -193,9 +195,10 @@ public class TopWikipediaSessions {
 		Options options = PipelineOptionsFactory.fromArgs(args)
 				.withValidation()
 				.as(Options.class);
-		DataflowPipelineOptions dataflowOptions = options.as(DataflowPipelineOptions.class);
 
-		Pipeline p = Pipeline.create(dataflowOptions);
+		options.setStreaming(true);
+
+		Pipeline p = Pipeline.create(options);
 
 		double samplingThreshold = 0.1;
 

@@ -18,8 +18,12 @@ package com.dataartisans.flink.dataflow;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
 import com.google.cloud.dataflow.sdk.io.TextIO;
+import com.google.cloud.dataflow.sdk.transforms.Aggregator;
 import com.google.cloud.dataflow.sdk.transforms.Create;
+import com.google.cloud.dataflow.sdk.transforms.DoFn;
+import com.google.cloud.dataflow.sdk.transforms.ParDo;
 import com.google.cloud.dataflow.sdk.transforms.RemoveDuplicates;
+import com.google.cloud.dataflow.sdk.transforms.Sum;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.base.Joiner;
 import org.apache.flink.test.util.JavaProgramTestBase;
@@ -29,6 +33,20 @@ import java.util.List;
 
 
 public class RemoveDuplicatesITCase extends JavaProgramTestBase {
+
+//	class MyDoFn extends DoFn<String, String> {
+//		private Aggregator<Integer, Integer> myAggregator;
+//
+//		public MyDoFn() {
+//			myAggregator = createAggregator("myCounter", new Sum.SumIntegerFn());
+//		}
+//
+//		@Override
+//		public void processElement(DoFn.ProcessContext c) {
+//			myAggregator.addValue(1);
+//			c.output(c.element());
+//		}
+//	}
 
 	protected String resultPath;
 
@@ -59,8 +77,9 @@ public class RemoveDuplicatesITCase extends JavaProgramTestBase {
 				p.apply(Create.of(strings))
 						.setCoder(StringUtf8Coder.of());
 
-		PCollection<String> output =
-				input.apply(RemoveDuplicates.<String>create());
+		PCollection<String> output = input
+//				.apply(ParDo.of(new MyDoFn()))
+				.apply(RemoveDuplicates.<String>create());
 
 		output.apply(TextIO.Write.to(resultPath));
 		p.run();

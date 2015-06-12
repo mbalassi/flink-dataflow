@@ -28,6 +28,7 @@ import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.runners.TransformTreeNode;
 import com.google.cloud.dataflow.sdk.transforms.AppliedPTransform;
 import com.google.cloud.dataflow.sdk.transforms.PTransform;
+import com.google.cloud.dataflow.sdk.transforms.join.CoGroupByKey;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.google.cloud.dataflow.sdk.values.PInput;
 import com.google.cloud.dataflow.sdk.values.POutput;
@@ -105,16 +106,16 @@ public class FlinkPipelineTranslator implements PipelineVisitor, TranslationCont
 		if (transform != null) {
 			TransformTranslator<?> translator = FlinkTransformTranslators.getTranslator(transform);
 
-			if (translator != null) {
-				inComposite = true;
-
-				// TODO: CoGroupByKey no longer has this method
+//			if (translator != null) {
+//				inComposite = true;
+//
+//				// TODO: CoGroupByKey no longer has this method
 //				if (transform instanceof CoGroupByKey &&
 //						((CoGroupByKey<?>) node.getInput()).getKeyedCollections().size() != 2) {
 //					// we can only optimize CoGroupByKey for input size 2
 //					inComposite = false;
 //				}
-			}
+//			}
 		}
 
 		this.depth++;

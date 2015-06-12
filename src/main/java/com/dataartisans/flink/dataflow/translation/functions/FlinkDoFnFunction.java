@@ -17,14 +17,19 @@ package com.dataartisans.flink.dataflow.translation.functions;
 
 import com.dataartisans.flink.dataflow.translation.wrappers.CombineFnAggregatorWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.api.client.util.Lists;
+import com.google.api.client.util.Maps;
+import com.google.cloud.dataflow.sdk.coders.Coder;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.transforms.Aggregator;
 import com.google.cloud.dataflow.sdk.transforms.Combine;
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
 import com.google.cloud.dataflow.sdk.transforms.windowing.BoundedWindow;
 import com.google.cloud.dataflow.sdk.transforms.windowing.GlobalWindow;
+import com.google.cloud.dataflow.sdk.util.TimerManager;
 import com.google.cloud.dataflow.sdk.util.WindowedValue;
 import com.google.cloud.dataflow.sdk.util.WindowingInternals;
+import com.google.cloud.dataflow.sdk.values.CodedTupleTag;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.google.cloud.dataflow.sdk.values.TupleTag;
 import com.google.common.collect.ImmutableList;
@@ -36,7 +41,11 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Encapsulates a {@link com.google.cloud.dataflow.sdk.transforms.DoFn}
@@ -110,7 +119,57 @@ public class FlinkDoFnFunction<IN, OUT> extends RichMapPartitionFunction<IN, OUT
 
 		@Override
 		public WindowingInternals<IN, OUT> windowingInternals() {
-			return null;
+			return new WindowingInternals<IN, OUT>() {
+				@Override
+				public KeyedState keyedState() {
+					throw new UnsupportedOperationException("Flink does not support Keyed State");
+				}
+
+				@Override
+				public <T> void store(CodedTupleTag<T> codedTupleTag, T t, Instant instant) throws IOException {
+					throw new UnsupportedOperationException("Flink does not support Keyed State");
+				}
+
+				@Override
+				public void outputWindowedValue(OUT out, Instant instant, Collection<? extends BoundedWindow> collection) {
+					outCollector.collect(out);
+				}
+
+				@Override
+				public <T> void writeToTagList(CodedTupleTag<T> codedTupleTag, T t) throws IOException {
+					throw new UnsupportedOperationException("Flink does not support Tag List");
+				}
+
+				@Override
+				public <T> void deleteTagList(CodedTupleTag<T> codedTupleTag) {
+					throw new UnsupportedOperationException("Flink does not support Tag List");
+				}
+
+				@Override
+				public <T> Iterable<T> readTagList(CodedTupleTag<T> codedTupleTag) throws IOException {
+					throw new UnsupportedOperationException("Flink does not support Tag List");
+				}
+
+				@Override
+				public <T> Map<CodedTupleTag<T>, Iterable<T>> readTagList(List<CodedTupleTag<T>> list) throws IOException {
+					throw new UnsupportedOperationException("Flink does not support Tag List");
+				}
+
+				@Override
+				public TimerManager getTimerManager() {
+					throw new UnsupportedOperationException("Flink does not support Time Manager");
+				}
+
+				@Override
+				public Collection<? extends BoundedWindow> windows() {
+					return Arrays.asList(GlobalWindow.INSTANCE);
+				}
+
+				@Override
+				public <T> void writePCollectionViewData(TupleTag<?> tupleTag, Iterable<WindowedValue<T>> iterable, Coder<T> coder) throws IOException {
+					throw new UnsupportedOperationException("Flink does not support View Data");
+				}
+			};
 		}
 
 		@Override
