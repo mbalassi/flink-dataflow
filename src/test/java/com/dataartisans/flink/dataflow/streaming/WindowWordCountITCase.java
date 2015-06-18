@@ -13,27 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.dataartisans.flink.dataflow;
+package com.dataartisans.flink.dataflow.streaming;
 
-import com.dataartisans.flink.dataflow.util.FlinkTestPipeline;
-import com.google.cloud.dataflow.examples.WordCount;
+import com.dataartisans.flink.dataflow.examples.streaming.WindowWordCount;
+import com.dataartisans.flink.dataflow.util.FlinkStreamingTestPipeline;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.coders.StringUtf8Coder;
 import com.google.cloud.dataflow.sdk.io.TextIO;
+import com.google.cloud.dataflow.sdk.transforms.Count;
 import com.google.cloud.dataflow.sdk.transforms.Create;
+import com.google.cloud.dataflow.sdk.transforms.ParDo;
+import com.google.cloud.dataflow.sdk.transforms.windowing.FixedWindows;
+import com.google.cloud.dataflow.sdk.transforms.windowing.Window;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.common.base.Joiner;
-import org.apache.flink.test.util.JavaProgramTestBase;
+import org.apache.flink.streaming.util.StreamingProgramTestBase;
+import org.joda.time.Duration;
 
 import java.util.Arrays;
 import java.util.List;
 
 
-public class WordCountITCase extends JavaProgramTestBase {
+public class WindowWordCountITCase extends StreamingProgramTestBase {
 
 	protected String resultPath;
 
-	public WordCountITCase(){
+	public WindowWordCountITCase(){
 	}
 
 	static final String[] WORDS_ARRAY = new String[] {
@@ -58,13 +63,19 @@ public class WordCountITCase extends JavaProgramTestBase {
 	@Override
 	protected void testProgram() throws Exception {
 
-		Pipeline p = FlinkTestPipeline.create();
+		Pipeline p = FlinkStreamingTestPipeline.create();
 
-		PCollection<String> input = p.apply(Create.of(WORDS)).setCoder(StringUtf8Coder.of());
+		PCollection<String> input = p.apply(Create.of(WORDS))
+				.setCoder(StringUtf8Coder.of());
 
-		input
-				.apply(new WordCount.CountWords())
-				.apply(TextIO.Write.to(resultPath));
+		PCollection<String> output = input
+				.apply(ParDo.of(new WindowWordCount.Tokenizer()))
+				.apply(Window.<String>into(FixedWindows.of(Duration.standardMinutes(1))))
+				.apply(Count.<String>perElement())
+				.apply(ParDo.of(new WindowWordCount.FormatCountsFn()));
+
+		output.apply(TextIO.Write.to(resultPath));
+		output.apply(TextIO.Write.to("testoutput"));
 
 		p.run();
 	}

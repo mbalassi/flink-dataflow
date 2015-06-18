@@ -29,23 +29,23 @@ import org.apache.flink.api.java.ExecutionEnvironment;
 
 public interface TranslationContext {
 
-	public ExecutionEnvironment getExecutionEnvironment();
+	ExecutionEnvironment getExecutionEnvironment();
 
-	public PipelineOptions getPipelineOptions();
+	PipelineOptions getPipelineOptions();
 	
-	public <T> DataSet<T> getInputDataSet(PInput value);
+	<T> DataSet<T> getInputDataSet(PInput value);
 	
-	public void setOutputDataSet(POutput value, DataSet<?> set);
+	void setOutputDataSet(POutput value, DataSet<?> set);
 
-	public <T> DataSet<T> getSideInputDataSet(PCollectionView<?> value);
+	<T> DataSet<T> getSideInputDataSet(PCollectionView<?> value);
 
-	public void setSideInputDataSet(PCollectionView<?> value, DataSet<?> set);
+	void setSideInputDataSet(PCollectionView<?> value, DataSet<?> set);
 	
-	public <T> TypeInformation<T> getTypeInfo(POutput output);
+	<T> TypeInformation<T> getTypeInfo(POutput output);
 
 	<InputT extends PInput> InputT getInput(PTransform<InputT, ?> transform);
 
 	<OutputT extends POutput> OutputT getOutput(PTransform<?, OutputT> transform);
 
-	public CoderRegistry getCoderRegistry(PTransform<?, ?> transform);
+	CoderRegistry getCoderRegistry(PTransform<?, ?> transform);
 }

@@ -20,6 +20,7 @@ package com.dataartisans.flink.dataflow.streaming.translation;
 import com.dataartisans.flink.dataflow.io.ConsoleIO;
 import com.dataartisans.flink.dataflow.streaming.functions.FlinkPubSubSinkFunction;
 import com.dataartisans.flink.dataflow.streaming.functions.FlinkPubSubSourceFunction;
+import com.dataartisans.flink.dataflow.translation.functions.FlinkCreateFunction;
 import com.dataartisans.flink.dataflow.translation.functions.FlinkFlatMapDoFnFunction;
 import com.dataartisans.flink.dataflow.streaming.functions.FlinkKeyedListWindowAggregationFunction;
 import com.dataartisans.flink.dataflow.streaming.functions.FlinkPartialWindowIteratorReduceFunction;
@@ -27,12 +28,17 @@ import com.dataartisans.flink.dataflow.streaming.functions.FlinkPartialWindowRed
 import com.dataartisans.flink.dataflow.streaming.functions.FlinkWindowReduceFunction;
 import com.dataartisans.flink.dataflow.translation.types.CoderTypeInformation;
 import com.dataartisans.flink.dataflow.translation.types.KvCoderTypeInformation;
+import com.dataartisans.flink.dataflow.translation.wrappers.SourceInputFormat;
 import com.google.cloud.dataflow.sdk.coders.CannotProvideCoderException;
 import com.google.cloud.dataflow.sdk.coders.Coder;
+import com.google.cloud.dataflow.sdk.coders.CoderException;
 import com.google.cloud.dataflow.sdk.coders.KvCoder;
 import com.google.cloud.dataflow.sdk.io.PubsubIO;
+import com.google.cloud.dataflow.sdk.io.Read;
+import com.google.cloud.dataflow.sdk.io.Source;
 import com.google.cloud.dataflow.sdk.io.TextIO;
 import com.google.cloud.dataflow.sdk.transforms.Combine;
+import com.google.cloud.dataflow.sdk.transforms.Create;
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
 import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
 import com.google.cloud.dataflow.sdk.transforms.PTransform;
@@ -46,12 +52,14 @@ import com.google.cloud.dataflow.sdk.util.WindowedValue;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.cloud.dataflow.sdk.values.TypedPValue;
+import com.google.common.collect.Lists;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.io.InputFormat;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.io.TextInputFormat;
+import org.apache.flink.api.java.operators.FlatMapOperator;
 import org.apache.flink.api.java.operators.Keys;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -70,6 +78,8 @@ import org.joda.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -80,7 +90,7 @@ import java.util.concurrent.TimeUnit;
 /**
 * Translators for transforming
 * Dataflow {@link com.google.cloud.dataflow.sdk.transforms.PTransform}s to
-* Flink {@link org.apache.flink.api.java.DataSet}s
+* Flink {@link org.apache.flink.streaming.api.datastream.DataStream}s
 */
 public class FlinkStreamingTransformTranslators {
 
@@ -97,8 +107,7 @@ public class FlinkStreamingTransformTranslators {
 
 	// register the known translators
 	static {
-		// we don't need this because we translate the Combine.PerKey directly
-		// TRANSLATORS.put(Combine.GroupedValues.class, new CombineGroupedValuesTranslator());
+		TRANSLATORS.put(Create.class, new CreateTranslator());
 
 		TRANSLATORS.put(ParDo.Bound.class, new ParDoBoundTranslator());
 
@@ -152,22 +161,55 @@ public class FlinkStreamingTransformTranslators {
 		return outputDataStream;
 	}
 
-//	private static class ReadSourceTranslator<T> implements FlinkStreamingPipelineTranslator.TransformTranslator<ReadSource.Bound<T>> {
-//
-//		@Override
-//		public void translateNode(ReadSource.Bound<T> transform, StreamingTranslationContext context) {
-//			String name = transform.getName();
-//			Source<T> source = transform.getSource();
-//			Coder<T> coder = transform.getOutput().getCoder();
-//
-//			TypeInformation<T> typeInformation = context.getTypeInfo(transform.getOutput());
-//
-//			// TODO: Add DataStreamSource accordingly
-////			DataStreamSource<T> dataSource = new DataStreamSource<>(context.getExecutionEnvironment(), new SourceInputFormat<>(source, context.getPipelineOptions(), coder), typeInformation, name);
-////
-////			context.setOutput(transform.getOutput(), dataSource);
-//		}
-//	}
+	private static class CreateTranslator<OUT> implements FlinkStreamingPipelineTranslator.TransformTranslator<Create<OUT>> {
+
+		@Override
+		public void translateNode(Create<OUT> transform, StreamingTranslationContext context) {
+			TypeInformation<OUT> typeInformation = context.getTypeInfo(context.getOutput(transform));
+			Iterable<OUT> elements = transform.getElements();
+
+			// we need to serialize the elements to byte arrays, since they might contain
+			// elements that are not serializable by Java serialization. We deserialize them
+			// in the FlatMap function using the Coder.
+
+			List<byte[]> serializedElements = Lists.newArrayList();
+			Coder<OUT> coder = context.getOutput(transform).getCoder();
+			for (OUT element: elements) {
+				ByteArrayOutputStream bao = new ByteArrayOutputStream();
+				try {
+					coder.encode(element, bao, Coder.Context.OUTER);
+					serializedElements.add(bao.toByteArray());
+				} catch (Exception e) {
+					throw new RuntimeException("Could not serialize Create elements using Coder: " + e);
+				}
+			}
+
+			DataStream<Integer> initDataStream = context.getExecutionEnvironment().fromElements(1);
+			FlinkCreateFunction<Integer, OUT> flatMapFunction = new FlinkCreateFunction<>(serializedElements, coder);
+			DataStream<OUT> outputDataStream = initDataStream.transform(transform.getName(), typeInformation,
+					new StreamFlatMap<>(flatMapFunction));
+			context.setOutputDataStream(context.getOutput(transform), outputDataStream);
+		}
+	}
+
+	private static class ReadSourceTranslator<T> implements FlinkStreamingPipelineTranslator.TransformTranslator<Read.Bound<T>> {
+
+		@Override
+		public void translateNode(Read.Bound<T> transform, StreamingTranslationContext context) {
+			String name = transform.getName();
+			Source<T> source = transform.getSource();
+			Coder<T> coder = context.getOutput(transform).getCoder();
+
+			TypeInformation<T> typeInformation = context.getTypeInfo(context.getOutput(transform));
+
+			// TODO: Add DataStreamSource accordingly
+			DataStreamSource<T> dataSource = new DataStreamSource<>(context.getExecutionEnvironment(), name, typeInformation,
+					new StreamSource(new FileSourceFunction<>(new SourceInputFormat<>(source, context.getPipelineOptions(), coder), typeInformation)),
+					true, name);
+
+			context.setOutputDataStream(context.getOutput(transform), dataSource);
+		}
+	}
 
 	// TODO: try out
 	private static class PubSubIOReadTranslator implements FlinkStreamingPipelineTranslator.TransformTranslator<PubsubIO.Read.Bound>{
@@ -453,7 +495,7 @@ public class FlinkStreamingTransformTranslators {
 			TypeInformation<KV<K, Iterable<V>>> typeInformation = context.getTypeInfo(context.getOutput(transform));
 
 			DataStream outputStream = inputDataStream.transform(transform.getName(), typeInformation,
-					new StreamMap<>(inputDataStream.clean(new ToSimpleValue())));
+					new StreamMap<>(context.clean(new ToSimpleValue())));
 
 			context.setOutputDataStream(context.getOutput(transform), outputStream);
 		}
@@ -486,7 +528,7 @@ public class FlinkStreamingTransformTranslators {
 			TypeInformation<KV<K, WindowedValue<V>>> typeInformation = context.getTypeInfo(context.getOutput(transform));
 
 			DataStream<KV<K, WindowedValue<V>>> outputStream = inputDataStream.transform(transform.getName(), typeInformation,
-					new StreamMap<>(inputDataStream.clean(new ToWindowedValue())));
+					new StreamMap<>(context.clean(new ToWindowedValue())));
 
 			context.setOutputDataStream(context.getOutput(transform), outputStream);
 		}

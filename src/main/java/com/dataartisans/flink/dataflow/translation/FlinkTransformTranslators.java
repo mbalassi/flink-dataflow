@@ -150,20 +150,19 @@ public class FlinkTransformTranslators {
 
 			TypeInformation<T> typeInformation = context.getTypeInfo(context.getOutput(transform));
 
-			DataSource<T> dataSource = new DataSource<>(context.getExecutionEnvironment(), new SourceInputFormat<>(source, context.getPipelineOptions(), coder), typeInformation, name);
+			DataSource<T> dataSource = new DataSource<>(context.getExecutionEnvironment(),
+					new SourceInputFormat<>(source, context.getPipelineOptions(), coder), typeInformation, name);
 
 			context.setOutputDataSet(context.getOutput(transform), dataSource);
 		}
 	}
 
 	private static class AvroIOReadTranslator<T> implements FlinkPipelineTranslator.TransformTranslator<AvroIO.Read.Bound<T>> {
-		private static final Logger LOG = LoggerFactory.getLogger(AvroIOReadTranslator.class);
 
 		@Override
 		public void translateNode(AvroIO.Read.Bound<T> transform, TranslationContext context) {
 			String path = transform.getFilepattern();
 			String name = transform.getName();
-			Schema schema = transform.getSchema();
 
 			TypeInformation<T> typeInformation = context.getTypeInfo(context.getOutput(transform));
 
@@ -211,7 +210,7 @@ public class FlinkTransformTranslators {
 				System.out.println("Could not access type from AvroIO.Bound: " + e);
 			}
 
-			DataSink<T> dataSink = inputDataSet.output(new AvroOutputFormat<T>(new Path
+			DataSink<T> dataSink = inputDataSet.output(new AvroOutputFormat<>(new Path
 					(filenamePrefix), avroType));
 
 			if (numShards > 0) {
@@ -308,7 +307,6 @@ public class FlinkTransformTranslators {
 			@SuppressWarnings("unchecked")
 			Combine.KeyedCombineFn<K, VI, VA, VO> keyedCombineFn = (Combine.KeyedCombineFn<K, VI, VA, VO>) transform.getFn();
 
-			//TODO: this is flaky
 			KvCoder<K, VI> inputCoder = (KvCoder<K, VI>)((TypedPValue) context.getInput(transform)).getCoder();
 
 			Coder<VA> accumulatorCoder =
@@ -347,28 +345,7 @@ public class FlinkTransformTranslators {
 		}
 	}
 
-//	private static class CombineGroupedValuesTranslator<K, VI, VO> implements FlinkPipelineTranslator.TransformTranslator<Combine.GroupedValues<K, VI, VO>> {
-//
-//		@Override
-//		public void translateNode(Combine.GroupedValues<K, VI, VO> transform, TranslationContext context) {
-//			DataSet<KV<K, VI>> inputDataSet = context.getInputDataStream(transform.getInput());
-//
-//			Combine.KeyedCombineFn<? super K, ? super VI, ?, VO> keyedCombineFn = transform.getFn();
-//
-//			GroupReduceFunction<KV<K, VI>, KV<K, VO>> groupReduceFunction = new FlinkCombineFunction<>(keyedCombineFn);
-//
-//			TypeInformation<KV<K, VO>> typeInformation = context.getTypeInfo(transform.getOutput());
-//
-//			Grouping<KV<K, VI>> grouping = new UnsortedGrouping<>(inputDataSet, new Keys.ExpressionKeys<>(new String[]{""}, inputDataSet.getType()));
-//
-//			GroupReduceOperator<KV<K, VI>, KV<K, VO>> outputDataSet =
-//					new GroupReduceOperator<>(grouping, typeInformation, groupReduceFunction, transform.getName());
-//			context.setOutputDataStream(transform.getOutput(), outputDataSet);
-//		}
-//	}
-	
 	private static class ParDoBoundTranslator<IN, OUT> implements FlinkPipelineTranslator.TransformTranslator<ParDo.Bound<IN, OUT>> {
-		private static final Logger LOG = LoggerFactory.getLogger(ParDoBoundTranslator.class);
 
 		@Override
 		public void translateNode(ParDo.Bound<IN, OUT> transform, TranslationContext context) {
@@ -388,7 +365,6 @@ public class FlinkTransformTranslators {
 	}
 
 	private static class ParDoBoundMultiTranslator<IN, OUT> implements FlinkPipelineTranslator.TransformTranslator<ParDo.BoundMulti<IN, OUT>> {
-		private static final Logger LOG = LoggerFactory.getLogger(ParDoBoundMultiTranslator.class);
 
 		@Override
 		public void translateNode(ParDo.BoundMulti<IN, OUT> transform, TranslationContext context) {
@@ -396,8 +372,7 @@ public class FlinkTransformTranslators {
 
 			final DoFn<IN, OUT> doFn = transform.getFn();
 
-//			Map<TupleTag<?>, PCollection<?>> outputs = transform.getOutput().getAll();
-			Map<TupleTag<?>, PCollection<?>> outputs = null;
+			Map<TupleTag<?>, PCollection<?>> outputs = context.getOutput(transform).getAll();
 
 			Map<TupleTag<?>, Integer> outputMap = Maps.newHashMap();
 			// put the main output at index 0, FlinkMultiOutputDoFnFunction also expects this
@@ -443,7 +418,6 @@ public class FlinkTransformTranslators {
 
 		@Override
 		public void translateNode(Flatten.FlattenPCollectionList<T> transform, TranslationContext context) {
-//			List<PCollection<T>> allInputs = transform.getInput().getAll();
 			List<PCollection<T>> allInputs = context.getInput(transform).getAll();
 			DataSet<T> result = null;
 			for(PCollection<T> collection : allInputs) {
@@ -479,13 +453,7 @@ public class FlinkTransformTranslators {
 			// in the FlatMap function using the Coder.
 
 			List<byte[]> serializedElements = Lists.newArrayList();
-			Coder<OUT> coder = null;
-//			try {
-				coder = context.getOutput(transform).getCoder();
-//				coder = transform.getDefaultOutputCoder(context.getInput(transform), (TypedPValue) context.getOutput(transform));
-//			} catch (CannotProvideCoderException e) {
-//				throw new RuntimeException("Coder was not provided in Create.", e);
-//			}
+			Coder<OUT> coder = context.getOutput(transform).getCoder();
 			for (OUT element: elements) {
 				ByteArrayOutputStream bao = new ByteArrayOutputStream();
 				try {

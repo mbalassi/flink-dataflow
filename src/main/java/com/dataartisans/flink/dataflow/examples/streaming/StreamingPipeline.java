@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.dataartisans.flink.dataflow.examples;
+package com.dataartisans.flink.dataflow.examples.streaming;
 
 import com.dataartisans.flink.dataflow.runner.FlinkPipelineOptions;
 import com.dataartisans.flink.dataflow.runner.FlinkPipelineRunner;
@@ -31,7 +31,7 @@ import com.google.cloud.dataflow.sdk.transforms.windowing.Window;
 import com.google.cloud.dataflow.sdk.values.KV;
 import org.joda.time.Duration;
 
-public class StreamingWordCount {
+public class StreamingPipeline {
 
 	public static class Tokenizer extends DoFn<String, String> {
 		@Override
@@ -61,7 +61,7 @@ public class StreamingWordCount {
 	}
 
 	/**
-	 * Options supported by {@link com.dataartisans.flink.dataflow.examples.StreamingWordCount}.
+	 * Options supported by {@link StreamingPipeline}.
 	 * <p>
 	 * Inherits standard configuration options.
 	 */

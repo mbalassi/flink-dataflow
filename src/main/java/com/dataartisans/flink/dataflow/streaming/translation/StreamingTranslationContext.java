@@ -29,23 +29,25 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
 public interface StreamingTranslationContext {
 
-	public StreamExecutionEnvironment getExecutionEnvironment();
+	StreamExecutionEnvironment getExecutionEnvironment();
 
-	public PipelineOptions getPipelineOptions();
+	<F> F clean(F f);
+
+	PipelineOptions getPipelineOptions();
 	
-	public <T> DataStream<T> getInputDataStream(PInput value);
+	<T> DataStream<T> getInputDataStream(PInput value);
 
-	public <T> WindowedDataStream<T> getInputWindowedDataStream(PInput value);
+	<T> WindowedDataStream<T> getInputWindowedDataStream(PInput value);
 
-	public void setOutputDataStream(POutput value, DataStream<?> stream);
+	void setOutputDataStream(POutput value, DataStream<?> stream);
 
-	public void setOutputWindowedDataStream(POutput value, WindowedDataStream<?> stream);
+	void setOutputWindowedDataStream(POutput value, WindowedDataStream<?> stream);
 
-	public <T> TypeInformation<T> getTypeInfo(POutput output);
+	<T> TypeInformation<T> getTypeInfo(POutput output);
 
-	public PInput getInput(PTransform<?, ?> transform);
+	<InputT extends PInput> InputT getInput(PTransform<InputT, ?> transform);
 
-	public POutput getOutput(PTransform<?, ?> transform);
+	<OutputT extends POutput> OutputT getOutput(PTransform<?, OutputT> transform);
 
-	public CoderRegistry getCoderRegistry(PTransform<?, ?> transform);
+	CoderRegistry getCoderRegistry(PTransform<?, ?> transform);
 }

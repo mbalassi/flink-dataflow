@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.dataartisans.flink.dataflow.examples;
+package com.dataartisans.flink.dataflow.examples.streaming;
 
 import com.dataartisans.flink.dataflow.runner.FlinkPipelineOptions;
 import com.dataartisans.flink.dataflow.runner.FlinkPipelineRunner;
@@ -31,7 +31,7 @@ import com.google.cloud.dataflow.sdk.transforms.windowing.Window;
 import com.google.cloud.dataflow.sdk.values.KV;
 import org.joda.time.Duration;
 
-public class StreamingPipeline {
+public class WindowWordCount {
 
 	public static class Tokenizer extends DoFn<String, String> {
 		@Override
@@ -49,7 +49,7 @@ public class StreamingPipeline {
 	}
 
 	/** A DoFn that converts a Word and Count into a printable string. */
-	static class FormatCountsFn extends DoFn<KV<String, Long>, String> {
+	public static class FormatCountsFn extends DoFn<KV<String, Long>, String> {
 		private static final long serialVersionUID = 0;
 
 		@Override
@@ -61,7 +61,7 @@ public class StreamingPipeline {
 	}
 
 	/**
-	 * Options supported by {@link StreamingPipeline}.
+	 * Options supported by {@link WindowWordCount}.
 	 * <p>
 	 * Inherits standard configuration options.
 	 */
@@ -95,7 +95,7 @@ public class StreamingPipeline {
 
 		p.apply(TextIO.Read.named("ReadLines").from(options.getInput()))
 				.apply(ParDo.of(new Tokenizer()))
-				.apply(Window.<String>into(FixedWindows.of(Duration.millis(1))))
+				.apply(Window.<String>into(FixedWindows.of(Duration.standardMinutes(1))))
 				.apply(Count.<String>perElement())
 				.apply(ParDo.of(new FormatCountsFn()))
 				.apply(TextIO.Write.named("WriteCounts")

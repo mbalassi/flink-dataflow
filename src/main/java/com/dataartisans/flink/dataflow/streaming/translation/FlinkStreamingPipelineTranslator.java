@@ -194,6 +194,11 @@ public class FlinkStreamingPipelineTranslator implements PipelineVisitor, Stream
 	}
 
 	@Override
+	public <F> F clean(F f) {
+		return env.clean(f);
+	}
+
+	@Override
 	public PipelineOptions getPipelineOptions() {
 		return options;
 	}
@@ -239,15 +244,15 @@ public class FlinkStreamingPipelineTranslator implements PipelineVisitor, Stream
 	}
 
 	@Override
-	public PInput getInput(PTransform<?, ?> transform) {
+	public <InputT extends PInput> InputT getInput(PTransform<InputT, ?> transform) {
 		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.getTransform() == transform, "can only be called with current transform");
-		return this.currentTransform.getInput();
+		return (InputT) this.currentTransform.getInput();
 	}
 
 	@Override
-	public PValue getOutput(PTransform<?, ?> transform) {
+	public <OutputT extends POutput> OutputT getOutput(PTransform<?, OutputT> transform) {
 		Preconditions.checkArgument(this.currentTransform != null && this.currentTransform.getTransform() == transform, "can only be called with current transform");
-		return (PValue) this.currentTransform.getOutput();
+		return (OutputT) this.currentTransform.getOutput();
 	}
 
 	public CoderRegistry getCoderRegistry(PTransform<?, ?> transform){

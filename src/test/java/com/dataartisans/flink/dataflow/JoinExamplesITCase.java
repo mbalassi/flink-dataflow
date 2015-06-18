@@ -15,6 +15,7 @@
  */
 package com.dataartisans.flink.dataflow;
 
+import com.dataartisans.flink.dataflow.util.FlinkTestPipeline;
 import com.google.api.services.bigquery.model.TableRow;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.io.TextIO;
